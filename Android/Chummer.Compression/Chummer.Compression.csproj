@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CS3021</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Chummer/7zip/Compress/**/*.cs" Link="Upstream/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../../Chummer/7zip/ICoder.cs" Link="Upstream/ICoder.cs" />
+    <Compile Include="../../Chummer/7zip/Common/CRC.cs" Link="Upstream/CRC.cs" />
+    <Compile Include="../../Chummer/Backend/Helpers/FetchSafelyFromArrayPool.cs" Link="Upstream/FetchSafelyFromArrayPool.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <ApplicationId>org.chummer.offline</ApplicationId>
+    <ApplicationTitle>Chummer Offline Preview</ApplicationTitle>
+    <ApplicationVersion>3</ApplicationVersion>
+    <ApplicationDisplayVersion>0.3</ApplicationDisplayVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Chummer.Portable/Chummer.Portable.csproj" />
+    <AndroidAsset Include="../../Chummer/data/*.xml" Link="data/%(Filename)%(Extension)" />
+    <AndroidAsset Include="../../LICENSE" Link="LICENSE.txt" />
+  </ItemGroup>
+</Project>

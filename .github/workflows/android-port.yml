@@ -1,0 +1,48 @@
+name: Android preview
+on:
+  push:
+    branches: [android-port]
+    paths: ['Android/**', '.github/workflows/android-port.yml']
+  pull_request:
+    paths: ['Android/**', '.github/workflows/android-port.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  portable-checks:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.303'
+      - name: Verify character compatibility and portable rules
+        run: dotnet run --project Chummer.Portable.Checks -- ..
+  apk:
+    needs: portable-checks
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.303'
+      - name: Install Android workload
+        run: dotnet workload install android --skip-manifest-update --source https://api.nuget.org/v3/index.json
+      - name: Restore Android project
+        run: dotnet restore Chummer.Android --source https://api.nuget.org/v3/index.json
+      - name: Build preview APK
+        run: dotnet build Chummer.Android -c Release --no-restore "-p:AndroidSdkDirectory=$env:ANDROID_HOME" "-p:JavaSdkDirectory=$env:JAVA_HOME_17_X64"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Chummer-Offline-Preview
+          path: Android/Chummer.Android/bin/Release/net8.0-android/*-Signed.apk
+          if-no-files-found: error
+          retention-days: 7
