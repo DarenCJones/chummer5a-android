@@ -14,17 +14,22 @@ public sealed record DraftKnowledge(string Id, string Name, string Type, int Rat
 public sealed record UnaugmentedStats(int PhysicalLimit, int MentalLimit, int SocialLimit, int Initiative,
     int PhysicalBoxes, int StunBoxes, int KnowledgePoints, int ContactPoints);
 
-/// <summary>First creation slice: ordinary mundane Human drafts under the standard priority table.</summary>
-public sealed class CreationRules
+/// <summary>Core mundane metahuman drafts under the standard priority table.</summary>
+public sealed partial class CreationRules
 {
     private readonly XDocument priorities;
-    private readonly XElement human;
+    private readonly Dictionary<string, XElement> metatypes;
+    private readonly Dictionary<string, XElement> qualities;
+    public static IReadOnlyList<string> CoreMetatypes { get; } = Array.AsReadOnly(new[] { "Human", "Elf", "Dwarf", "Ork", "Troll" });
     private readonly XElement[] skills;
-    public CreationRules(Stream priorityData, Stream metatypeData, Stream skillData)
+    public CreationRules(Stream priorityData, Stream metatypeData, Stream skillData, Stream qualityData)
     {
         priorities = Read(priorityData);
-        human = new XElement(Read(metatypeData).Root!.Element("metatypes")!.Elements("metatype")
-            .Single(e => (string?)e.Element("name") == "Human"));
+        metatypes = Read(metatypeData).Root!.Element("metatypes")!.Elements("metatype")
+            .Where(e => CoreMetatypes.Contains((string?)e.Element("name") ?? ""))
+            .ToDictionary(e => e.Element("name")!.Value, e => new XElement(e));
+        qualities = Read(qualityData).Root!.Element("qualities")!.Elements("quality")
+            .GroupBy(e => e.Element("name")!.Value).ToDictionary(g => g.Key, g => new XElement(g.First()));
         skills = Read(skillData).Root!.Element("skills")!.Elements("skill")
             .Where(e => (string?)e.Element("source") == "SR5" &&
                 !((string?)e.Element("category") ?? "").Contains("Magical", StringComparison.OrdinalIgnoreCase) &&
@@ -45,7 +50,7 @@ public sealed class CreationRules
             (e.Element("prioritytable") is null || (string?)e.Element("prioritytable") == "Standard"));
     private int Weight(string letter) => int.Parse(priorities.Root!.Element("priortysumtotenvalues")!.Element(letter)!.Value, CultureInfo.InvariantCulture);
     private static int Int(XElement e, string field) => int.Parse(e.Element(field)!.Value, CultureInfo.InvariantCulture);
-    public CreationBudget Budget(PriorityChoice choice)
+    public CreationBudget Budget(PriorityChoice choice, string metatype = "Human")
     {
         var letters = new[] { choice.Heritage, choice.Attributes, choice.Skills, choice.Resources, "E" };
         if (letters.Any(v => v.Length != 1 || !"ABCDE".Contains(v, StringComparison.Ordinal)))
@@ -59,23 +64,27 @@ public sealed class CreationRules
             if (letters.Sum(Weight) != 10) throw new ArgumentException("Sum-to-Ten priorities must total 10. Talent is E for a mundane draft.");
         }
         else throw new ArgumentException("Choose Priority or SumtoTen.");
+        if (!CoreMetatypes.Contains(metatype)) throw new ArgumentException("Choose a supported core metatype.");
         var heritage = Priority("Heritage", choice.Heritage).Element("metatypes")!.Elements("metatype")
-            .Single(e => (string?)e.Element("name") == "Human");
+            .SingleOrDefault(e => (string?)e.Element("name") == metatype)
+            ?? throw new ArgumentException($"{metatype} is not available at heritage priority {choice.Heritage}.");
         var skill = Priority("Skills", choice.Skills);
         return new CreationBudget(Int(Priority("Attributes", choice.Attributes), "attributes"), Int(heritage, "value"),
             Int(skill, "skills"), Int(skill, "skillgroups"), decimal.Parse(Priority("Resources", choice.Resources).Element("resources")!.Value, CultureInfo.InvariantCulture));
     }
-    public CharacterDocument CreateHumanDraft(string name, string alias, PriorityChoice choice)
+    public CharacterDocument CreateHumanDraft(string name, string alias, PriorityChoice choice) => CreateMundaneDraft(name, alias, choice, "Human");
+    public CharacterDocument CreateMundaneDraft(string name, string alias, PriorityChoice choice, string metatype)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Enter a character name.");
-        var budget = Budget(choice);
+        var budget = Budget(choice, metatype);
+        var selectedMetatype = metatypes[metatype];
         var root = new XElement("character",
             new XElement("createdversion", "5.225.0"), new XElement("appversion", "5.225.0"),
             new XElement("gameedition", "SR5"), new XElement("settings", "default.xml"),
-            new XElement("androidcreationdraft", "mundane-human-v1"),
+            new XElement("androidcreationdraft", "mundane-core-v2"),
             new XElement("name", name.Trim()), new XElement("alias", alias),
-            new XElement("metatype", "Human"), new XElement("metatypeid", human.Element("id")!.Value),
-            new XElement("metavariant", "None"), new XElement("metavariantguid", Guid.Empty.ToString("D")),
+            new XElement("metatype", metatype), new XElement("metatypeid", selectedMetatype.Element("id")!.Value),
+            new XElement("metavariant", ""), new XElement("metavariantid", Guid.Empty.ToString("D")),
             new XElement("metatypecategory", "Metahuman"), new XElement("metatypebp", "0"),
             new XElement("created", "False"), new XElement("buildmethod", choice.Method),
             new XElement("prioritymetatype", $"{choice.Heritage},{Weight(choice.Heritage)}"),
@@ -92,14 +101,19 @@ public sealed class CreationRules
             new XElement("attributes"), new XElement("qualities"), new XElement("improvements"),
             new XElement("expenses"), new XElement("weapons"), new XElement("armors"), new XElement("gears"),
             new XElement("physicalcmfilled", 0), new XElement("stuncmfilled", 0));
+        foreach (var field in new[] { "walk", "run", "sprint" })
+        {
+            root.Add(new XElement(field, selectedMetatype.Element(field)!.Value));
+            root.Add(new XElement(field + "alt", selectedMetatype.Element(field)!.Value));
+        }
         foreach (var attribute in new[] { "BOD", "AGI", "REA", "STR", "CHA", "INT", "LOG", "WIL", "EDG", "MAG", "MAGAdept", "RES", "ESS", "DEP" })
         {
             var key = attribute == "MAGAdept" ? "mag" : attribute.ToLowerInvariant();
-            var minimum = attribute is "MAG" or "MAGAdept" or "RES" or "DEP" ? 0 : Int(human, key + "min");
-            var maximum = Int(human, key + "max");
+            var minimum = attribute is "MAG" or "MAGAdept" or "RES" or "DEP" ? 0 : Int(selectedMetatype, key + "min");
+            var maximum = Int(selectedMetatype, key + "max");
             root.Element("attributes")!.Add(new XElement("attribute", new XElement("name", attribute),
                 new XElement("metatypemin", minimum), new XElement("metatypemax", maximum),
-                new XElement("metatypeaugmax", Int(human, key + "aug")),
+                new XElement("metatypeaugmax", Int(selectedMetatype, key + "aug")),
                 new XElement("base", 0), new XElement("karma", 0), new XElement("metatypecategory", "Standard"),
                 new XElement("totalvalue", attribute == "ESS" ? 6 : minimum)));
         }
@@ -112,6 +126,7 @@ public sealed class CreationRules
             new XElement("groups", skills.Select(s => (string?)s.Element("skillgroup") ?? "").Where(g => g.Length > 0).Distinct()
                 .Select(g => new XElement("group", new XElement("karma", 0), new XElement("base", 0),
                     new XElement("isbroken", "False"), new XElement("id", Guid.NewGuid().ToString("D")), new XElement("name", g))))));
+        AddMetatypeTraits(root, selectedMetatype);
         using var buffer = new MemoryStream(); new XDocument(root).Save(buffer); buffer.Position = 0;
         return CharacterDocument.Load(buffer);
     }
@@ -122,12 +137,14 @@ public sealed class CreationRules
 
 public sealed partial class CharacterDocument
 {
-    public bool IsAndroidDraft => Field("androidcreationdraft") == "mundane-human-v1" && !IsCareer;
+    public bool IsAndroidDraft => Field("androidcreationdraft") is "mundane-human-v1" or "mundane-core-v2" &&
+        CreationRules.CoreMetatypes.Contains(Metatype) && !IsCareer;
     private void RequireDraft()
     {
-        if (!IsAndroidDraft) throw new InvalidOperationException("This editor currently supports Human mundane drafts created in the Android app.");
-        if (document.Root!.Element("improvements")?.HasElements == true || document.Root.Element("qualities")?.HasElements == true ||
-            document.Root.Element("gears")?.HasElements == true || document.Root.Element("cyberwares")?.HasElements == true)
+        if (!IsAndroidDraft) throw new InvalidOperationException("This editor currently supports core mundane drafts created in the Android app.");
+        if (document.Root!.Element("improvements")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
+            document.Root.Element("qualities")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
+            new[] { "gears", "cyberwares", "biowares", "weapons", "armors", "vehicles", "spells", "powers" }.Any(collection => document.Root.Element(collection)?.HasElements == true))
             throw new InvalidOperationException("This draft has effects that the creation editor cannot yet calculate.");
     }
     private IEnumerable<XElement> AttributeNodes => document.Root!.Element("attributes")!.Elements("attribute");
@@ -157,6 +174,8 @@ public sealed partial class CharacterDocument
         var knowledgeBudget = 2 * (proposed.Single(e => e.Name == "INT").Rating + proposed.Single(e => e.Name == "LOG").Rating);
         if (DraftKnowledgeSkills.Sum(k => k.Native ? 0 : k.Rating) > knowledgeBudget)
             throw new ArgumentException("Lower knowledge or language ratings before reducing their point budget.");
+        if (Contacts.Sum(c => c.Connection + c.Loyalty) > 3 * proposed.Single(e => e.Name == "CHA").Rating)
+            throw new ArgumentException("Lower contact costs before reducing Charisma.");
         foreach (var a in proposed)
         {
             var node = AttributeNodes.Single(e => (string?)e.Element("name") == a.Name);

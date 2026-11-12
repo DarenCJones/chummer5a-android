@@ -103,7 +103,8 @@ Console.WriteLine($"PASS: profile/ledger/damage edits preserve unknown data; rej
 using var priorityData = File.OpenRead(Path.Combine(root, "Chummer", "data", "priorities.xml"));
 using var metatypeData = File.OpenRead(Path.Combine(root, "Chummer", "data", "metatypes.xml"));
 using var skillData = File.OpenRead(Path.Combine(root, "Chummer", "data", "skills.xml"));
-var creation = new CreationRules(priorityData, metatypeData, skillData);
+using var qualityData = File.OpenRead(Path.Combine(root, "Chummer", "data", "qualities.xml"));
+var creation = new CreationRules(priorityData, metatypeData, skillData, qualityData);
 var priorities = new PriorityChoice("Priority", "D", "A", "B", "C");
 var budget = creation.Budget(priorities);
 Assert(budget.Attributes == 24 && budget.Special == 3 && budget.Skills == 36 && budget.SkillGroups == 5 && budget.Nuyen == 140000,
@@ -196,3 +197,47 @@ using (var compressed = new MemoryStream())
     Assert(sizeRejected, "Oversized decompressed length accepted.");
 }
 Console.WriteLine($"PASS: {compressedCount} compressed character round trips using upstream LZMA code; truncated and oversized inputs rejected.");
+var htmlCharacter = Parse("<character><name>&lt;script&gt;alert(1)&lt;/script&gt;</name><background>&lt;img src='https://example.invalid/x'&gt;</background></character>");
+var summaryHtml = CharacterSheet.SummaryHtml(htmlCharacter);
+Assert(!summaryHtml.Contains("<script>") && !summaryHtml.Contains("<img ") && summaryHtml.Contains("&lt;script&gt;"), "Summary HTML did not escape character text.");
+Assert(CharacterSheet.SummaryHtml(draft).Contains("Unfinished mundane Human draft"), "Printed draft lacks creation status.");
+Console.WriteLine("PASS: printable summaries escape user text and identify unfinished drafts.");
+draft.SetDraftContact(null, "Fixer", "Broker", "Seattle", 4, 3);
+draft.SetDraftContact(null, "Medic", "Street doc", "Seattle", 3, 2);
+Assert(draft.DraftContactPointsRemaining == 0, "Contact point budget mismatch.");
+var contactsBefore = Xml(draft);
+Reject(() => draft.SetDraftContact(null, "Extra", "", "", 1, 1));
+Reject(() => draft.SetDraftContact(null, "Too costly", "", "", 6, 6));
+Reject(() => draft.SetDraftAttributes(new Dictionary<string, int> { ["CHA"] = 3 }));
+Assert(XNode.DeepEquals(contactsBefore, Xml(draft)), "Rejected contact edit mutated character data.");
+var medic = draft.Contacts.Single(c => c.Name == "Medic");
+draft.SetDraftContact(medic.Id, "Medic", "Street doc", "Tacoma", 2, 2);
+Assert(draft.DraftContactPointsRemaining == 1, "Contact editing did not refund points.");
+draft.RemoveDraftContact(medic.Id);
+Assert(draft.DraftContactPointsRemaining == 5, "Contact removal did not refund points.");
+Console.WriteLine("PASS: standard draft contacts, per-contact caps, Charisma budget protection and refunds.");
+var allMetatypePriorities = new PriorityChoice("Priority", "A", "B", "C", "D");
+foreach (var race in CreationRules.CoreMetatypes)
+{
+    var racialDraft = creation.CreateMundaneDraft("Racial test", "", allMetatypePriorities, race);
+    Assert(racialDraft.IsAndroidDraft && racialDraft.Metatype == race && racialDraft.DraftStats().PhysicalBoxes > 0,
+        $"Core metatype initialization failed: {race}");
+    Assert(Xml(racialDraft).Root!.Element("metavariantid") is not null && racialDraft.Field("walk") == "2/1/0", "Desktop metatype/movement schema mismatch.");
+}
+var troll = creation.CreateMundaneDraft("Troll", "", allMetatypePriorities, "Troll");
+Assert(troll.DraftRacialBonus("Armor") == 1 && troll.DraftRacialBonus("Reach") == 1 && troll.DraftRacialBonus("LifestyleCost") == 100,
+    "Troll racial effects mismatch.");
+Assert(troll.DraftAttributes.Single(a => a.Name == "BOD").Minimum == 5 && troll.DraftStats().PhysicalBoxes == 11 &&
+    troll.DraftRacialQualities.Contains("Thermographic Vision"), "Troll natural limits/traits mismatch.");
+var dwarf = creation.CreateMundaneDraft("Dwarf", "", allMetatypePriorities, "Dwarf");
+Assert(dwarf.DraftRacialBonus("PathogenContactResist") == 2 && dwarf.DraftRacialBonus("ToxinInjectionResist") == 2 &&
+    dwarf.DraftRacialBonus("LifestyleCost") == 20, "Dwarf racial effects mismatch.");
+var elf = creation.CreateMundaneDraft("Elf", "", allMetatypePriorities, "Elf");
+Assert(elf.DraftAttributes.Single(a => a.Name == "AGI").Minimum == 2 && elf.DraftAttributes.Single(a => a.Name == "CHA").Minimum == 3 &&
+    elf.DraftRacialQualities.Contains("Low-Light Vision"), "Elf natural limits/traits mismatch.");
+Reject(() => creation.CreateMundaneDraft("Invalid", "", priorities, "Troll"));
+var legacyGender = Parse("<character><sex>Female</sex></character>");
+Assert(legacyGender.Field("gender") == "Female", "Legacy gender fallback failed.");
+legacyGender.SetProfile(new Dictionary<string,string> { ["gender"] = "Nonbinary" });
+Assert(legacyGender.Field("gender") == "Nonbinary" && legacyGender.Field("sex") == "Nonbinary", "Modern/legacy gender fields diverged.");
+Console.WriteLine("PASS: five core mundane metatypes, racial improvement records, natural limits and legacy/modern profile compatibility.");

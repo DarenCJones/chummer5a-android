@@ -15,16 +15,18 @@ public sealed partial class CharacterDocument
     public string Alias => Field("alias");
     public string Metatype => Field("metatype");
     public CharacterDocument Clone() => new(new XDocument(document));
-    public string Field(string name) => document.Root!.Element(name)?.Value ?? "";
+    public string Field(string name) => document.Root!.Element(name)?.Value ??
+        (name == "gender" ? document.Root.Element("sex")?.Value : null) ?? "";
 
     private static readonly HashSet<string> EditableFields = new(StringComparer.Ordinal)
-    { "name", "alias", "playername", "age", "sex", "height", "weight", "eyes", "hair", "skin", "concept", "description", "background" };
+    { "name", "alias", "playername", "age", "gender", "height", "weight", "eyes", "hair", "skin", "concept", "description", "background" };
 
     public void SetProfile(IReadOnlyDictionary<string, string> fields)
     {
         if (fields.Keys.Any(k => !EditableFields.Contains(k)))
             throw new ArgumentException("Unsupported profile field.");
         foreach (var (key, value) in fields) SetField(key, value);
+        if (fields.TryGetValue("gender", out var gender) && document.Root!.Element("sex") is not null) SetField("sex", gender);
     }
 
     private void SetField(string name, string value) => document.Root!.SetElementValue(name, value);

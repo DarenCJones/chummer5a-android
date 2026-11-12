@@ -22,6 +22,7 @@ public class WorkbenchActivity : Activity
     private readonly List<(View View, string Tab)> menuItems = [];
     private readonly Dictionary<string, Button> navigation = [];
     private string selectedTab = "Characters";
+    private global::Android.Webkit.WebView? printView;
     private string Storage => FilesDir!.AbsolutePath;
     private string RosterDirectory => Path.Combine(Storage, "characters");
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
@@ -44,12 +45,13 @@ public class WorkbenchActivity : Activity
         var scroll = new ScrollView(this); scroll.AddView(layout);
         shell.AddView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
         SetContentView(shell);
-        layout.AddView(new TextView(this) { Text = "Offline development preview. Human mundane draft creation, profile editing, manual career records and play tools are available. Other creation paths, upgrades and calculations for imported characters are still being ported." });
-        MenuButton(layout, "Create a Human mundane draft", CreateDraft, "Create");
+        layout.AddView(new TextView(this) { Text = "Offline development preview. Core mundane draft creation, profile editing, manual career records and play tools are available. Magic, other creation paths, upgrades and calculations for imported characters are still being ported." });
+        MenuButton(layout, "Create a mundane draft", CreateDraft, "Create");
         MenuButton(layout, "Import character", Import, "Characters");
         MenuButton(layout, "Import compressed character (.chum5lz)", () => Import(true), "Characters");
         MenuButton(layout, "Open saved character", OpenRoster, "Characters");
         MenuButton(layout, "Edit profile and background", EditProfile, "Characters");
+        MenuButton(layout, "Contacts", EditContacts, "Characters");
         MenuButton(layout, "Allocate draft attributes", EditAttributes, "Create");
         MenuButton(layout, "Allocate draft skills", EditSkills, "Create");
         MenuButton(layout, "Allocate draft skill groups", EditGroups, "Create");
@@ -60,6 +62,7 @@ public class WorkbenchActivity : Activity
         MenuButton(layout, "View career history", ShowHistory, "Play");
         MenuButton(layout, "Export character copy", Export, "Characters");
         MenuButton(layout, "Export compressed character copy", () => Export(true), "Characters");
+        MenuButton(layout, "Print / save summary as PDF", PrintSummary, "Characters");
         MenuButton(layout, "Restore previous saved version", RestorePrevious, "Characters");
         MenuButton(layout, "Browse rules catalogs", Catalogs, "Library");
         MenuButton(layout, "About, source and license", About, "Library");
@@ -179,7 +182,8 @@ public class WorkbenchActivity : Activity
         using var priorities = Assets!.Open("data/priorities.xml");
         using var metatypes = Assets.Open("data/metatypes.xml");
         using var skills = Assets.Open("data/skills.xml");
-        return creationRules = new CreationRules(priorities, metatypes, skills);
+        using var qualities = Assets.Open("data/qualities.xml");
+        return creationRules = new CreationRules(priorities, metatypes, skills, qualities);
     }
     private Spinner Select(LinearLayout layout, string label, string[] choices, int selected = 0)
     {
@@ -190,8 +194,10 @@ public class WorkbenchActivity : Activity
     private void CreateDraft()
     {
         var rules = Creation(); var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Create an unfinished mundane Human character under standard core rules. Talent is E. Allocate attributes, active skills, skill groups, knowledge and languages. Qualities, equipment and final career validation are pending." });
+        form.Layout.AddView(new TextView(this) { Text = "Create an unfinished mundane metahuman under standard core rules. Talent is E. Racial traits are included. Allocate attributes, skills, knowledge and languages. Selected qualities, equipment and final career validation are pending." });
         var name = Input(form.Layout, "Name"); var alias = Input(form.Layout, "Alias");
+        var metatypeNames = CreationRules.CoreMetatypes.ToArray();
+        var metatype = Select(form.Layout, "Metatype", metatypeNames);
         var method = Select(form.Layout, "Build method", ["Priority", "SumtoTen"]);
         string[] letters = ["A", "B", "C", "D", "E"];
         var heritage = Select(form.Layout, "Heritage priority", letters, 3);
@@ -206,16 +212,16 @@ public class WorkbenchActivity : Activity
         {
             try
             {
-                var b = rules.Budget(Choice());
+                var b = rules.Budget(Choice(), metatypeNames[metatype.SelectedItemPosition]);
                 budget.Text = $"Attribute points: {b.Attributes}\nSpecial points: {b.Special}\nSkill points: {b.Skills}\nSkill group points: {b.SkillGroups}\nResources: {b.Nuyen:N0} Nuyen";
             }
             catch (ArgumentException e) { budget.Text = e.Message; }
         }
-        foreach (var spinner in new[] { method, heritage, attributes, skills, resources }) spinner.ItemSelected += (_, _) => Refresh();
+        foreach (var spinner in new[] { metatype, method, heritage, attributes, skills, resources }) spinner.ItemSelected += (_, _) => Refresh();
         Refresh();
-        EditDialog("New Human mundane draft", form.Scroll, () =>
+        EditDialog("New mundane draft", form.Scroll, () =>
         {
-            var draft = rules.CreateHumanDraft(name.Text ?? "", alias.Text ?? "", Choice());
+            var draft = rules.CreateMundaneDraft(name.Text ?? "", alias.Text ?? "", Choice(), metatypeNames[metatype.SelectedItemPosition]);
             var file = Path.Combine(RosterDirectory, Guid.NewGuid().ToString("N") + ".chum5");
             using (var output = File.Create(file + ".tmp")) draft.Save(output);
             File.Move(file + ".tmp", file); Open(file);
@@ -241,7 +247,7 @@ public class WorkbenchActivity : Activity
     private void EditSkills()
     {
         var c = RequireCharacter();
-        if (!c.IsAndroidDraft) throw new InvalidOperationException("Skill allocation currently supports Human mundane drafts created in this app.");
+        if (!c.IsAndroidDraft) throw new InvalidOperationException("Skill allocation currently supports core mundane drafts created in this app.");
         var skills = Creation().Skills(c).ToArray();
         new AlertDialog.Builder(this).SetTitle($"Active skills — {c.SkillPointsRemaining} points left")!
             .SetItems(skills.Select(s => $"{s.Name}: {s.Rating}").ToArray(), (_, args) => Guard(() =>
@@ -297,6 +303,36 @@ public class WorkbenchActivity : Activity
                 });
             }))!.Show();
     }
+    private void EditContacts()
+    {
+        var c = RequireCharacter(); var contacts = c.Contacts.ToArray();
+        if (!c.IsAndroidDraft)
+        {
+            status.Text = "Contact editing for imported characters is pending.\n\n" + string.Join("\n\n", contacts.Select(r => $"{r.Name}\n{r.Role} — {r.Location}\nConnection {r.Connection}; loyalty {r.Loyalty}"));
+            return;
+        }
+        var labels = new[] { "Add contact" }.Concat(contacts.Select(r => $"{r.Name} — C{r.Connection} / L{r.Loyalty}")).ToArray();
+        new AlertDialog.Builder(this).SetTitle($"Contacts — {c.DraftContactPointsRemaining} points left")!
+            .SetItems(labels, (_, args) => Guard(() =>
+            {
+                var existing = args.Which == 0 ? null : contacts[args.Which - 1];
+                var form = Form(); var name = Input(form.Layout, "Name", existing?.Name ?? "");
+                var role = Input(form.Layout, "Role", existing?.Role ?? ""); var location = Input(form.Layout, "Location", existing?.Location ?? "");
+                var connection = Input(form.Layout, "Connection (1–6)", (existing?.Connection ?? 1).ToString());
+                var loyalty = Input(form.Layout, "Loyalty (1–6)", (existing?.Loyalty ?? 1).ToString());
+                connection.InputType = loyalty.InputType = InputTypes.ClassNumber;
+                AlertDialog? editor = null;
+                if (existing is not null)
+                    Button(form.Layout, "Remove contact", () => new AlertDialog.Builder(this).SetMessage("Remove this contact?")!
+                        .SetNegativeButton("Cancel", (_, _) => { })!.SetPositiveButton("Remove", (_, _) => Guard(() =>
+                        { Commit(updated => updated.RemoveDraftContact(existing.Id)); editor?.Dismiss(); }))!.Show());
+                editor = EditDialog("Draft contact", form.Scroll, () =>
+                {
+                    if (!int.TryParse(connection.Text, out var conn) || !int.TryParse(loyalty.Text, out var loy)) throw new ArgumentException("Enter whole-number connection and loyalty ratings.");
+                    Commit(updated => updated.SetDraftContact(existing?.Id, name.Text ?? "", role.Text ?? "", location.Text ?? "", conn, loy));
+                });
+            }))!.Show();
+    }
     private (LinearLayout Layout, ScrollView Scroll) Form()
     {
         var layout = new LinearLayout(this) { Orientation = Orientation.Vertical };
@@ -327,7 +363,7 @@ public class WorkbenchActivity : Activity
         var c = RequireCharacter(); var form = Form();
         var definitions = new (string Key, string Label, bool Multi)[] {
             ("name", "Name", false), ("alias", "Alias", false), ("playername", "Player", false),
-            ("age", "Age", false), ("sex", "Sex", false), ("height", "Height", false),
+            ("age", "Age", false), ("gender", "Gender", false), ("height", "Height", false),
             ("weight", "Weight", false), ("eyes", "Eyes", false), ("hair", "Hair", false),
             ("skin", "Skin", false), ("concept", "Concept", true),
             ("description", "Description", true), ("background", "Background", true) };
@@ -381,6 +417,7 @@ public class WorkbenchActivity : Activity
             var trained = Creation().Skills(c).Where(s => s.Rating > 0);
             lines.Add("\nActive skills\n" + string.Join("\n", trained.Select(s => $"{s.Name}: {s.Rating}")));
             lines.Add("\nKnowledge and languages\n" + string.Join("\n", c.DraftKnowledgeSkills.Select(k => $"{k.Name}: {(k.Native ? "Native" : k.Rating.ToString())}")));
+            lines.Add($"\nRacial traits: {string.Join(", ", c.DraftRacialQualities)}\nNatural armor: {c.DraftRacialBonus("Armor")}; reach bonus: {c.DraftRacialBonus("Reach")}\nLifestyle cost adjustment: {c.DraftRacialBonus("LifestyleCost")}%");
         }
         foreach (var (collection, item, title) in new[] { ("weapons", "weapon", "Weapons"), ("armors", "armor", "Armor"),
             ("gears", "gear", "Gear"), ("cyberwares", "cyberware", "Augmentations"), ("vehicles", "vehicle", "Vehicles"),
@@ -396,6 +433,29 @@ public class WorkbenchActivity : Activity
         var records = RequireCharacter().Transactions.OrderByDescending(t => t.Date).ToArray();
         status.Text = records.Length == 0 ? "No career transactions." : string.Join("\n\n", records.Select(t =>
             $"{t.Date}\n{t.Currency}: {t.Amount.ToString(Invariant)}\n{t.Reason}"));
+    }
+    private void PrintSummary()
+    {
+        var summary = CharacterSheet.SummaryHtml(RequireCharacter().Clone());
+        if (printView is not null) throw new InvalidOperationException("A character summary is already being prepared for printing.");
+        var manager = GetSystemService(PrintService) as global::Android.Print.PrintManager
+            ?? throw new InvalidOperationException("Android printing is not available on this device.");
+        var view = new global::Android.Webkit.WebView(this); printView = view;
+        view.Settings.JavaScriptEnabled = false;
+        view.Settings.BlockNetworkLoads = true;
+        view.Settings.AllowFileAccess = false;
+        view.Settings.AllowContentAccess = false;
+        void Finished() { view.Destroy(); if (printView == view) printView = null; }
+        view.SetWebViewClient(new SummaryPageClient(() =>
+        {
+            try
+            {
+                var adapter = view.CreatePrintDocumentAdapter("Chummer character summary");
+                manager.Print("Chummer character summary", new SummaryPrintAdapter(adapter, Finished), new global::Android.Print.PrintAttributes.Builder().Build());
+            }
+            catch (Exception e) { Finished(); if (!IsDestroyed) status.Text = $"Unable to print summary: {e.Message}"; }
+        }));
+        view.LoadDataWithBaseURL(null, summary, "text/html", "UTF-8", null);
     }
     private void RestorePrevious()
     {
@@ -416,7 +476,7 @@ public class WorkbenchActivity : Activity
     private void About()
     {
         var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.3\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts currently support mundane Humans under standard Priority or Sum-to-Ten rules. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
+        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.4\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support mundane Humans, Elves, Dwarfs, Orks and Trolls under standard Priority or Sum-to-Ten rules. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
         using var license = Assets!.Open("LICENSE.txt"); using var reader = new StreamReader(license);
         form.Layout.AddView(new TextView(this) { Text = reader.ReadToEnd() });
         new AlertDialog.Builder(this).SetTitle("About this preview")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();
