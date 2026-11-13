@@ -84,6 +84,40 @@ Assert(Roll(new RollOptions(4, Gremlins: 1), 1, 3, 5, 6).Glitch, "Gremlins misma
 Assert(Roll(new RollOptions(3, VariableGlitch: true), 1, 2, 3).CriticalGlitch, "Variable glitch mismatch.");
 Reject(() => DicePool.Roll(new RollOptions(0)));
 Reject(() => DicePool.Roll(new RollOptions(1), () => 7));
+PoolRoll Reroll(PoolRoll previous, RollOptions options, params int[] values)
+{
+    var queue = new Queue<int>(values); return DicePool.RerollMisses(previous,options,()=>queue.Dequeue());
+}
+var rerollOriginal = Roll(new RollOptions(4),1,1,5,6);
+var rerollOriginalDice = rerollOriginal.Dice.ToArray();
+var rerolledGlitch = Reroll(rerollOriginal,new RollOptions(4),5,6);
+Assert(rerolledGlitch.Hits == 4 && rerolledGlitch.Glitch && !rerolledGlitch.CriticalGlitch && rerollOriginal.Dice.SequenceEqual(rerollOriginalDice), "Reroll lost old hits/glitch or mutated the original roll.");
+var rerolledCritical = Reroll(Roll(new RollOptions(3),1,1,2),new RollOptions(3),5,5,5);
+Assert(rerolledCritical.Hits == 3 && rerolledCritical.CriticalGlitch, "Desktop critical-glitch preservation mismatch.");
+var rerolledNewGlitch = Reroll(Roll(new RollOptions(4),2,3,5,6),new RollOptions(4),1,1);
+Assert(rerolledNewGlitch.Hits == 2 && rerolledNewGlitch.Glitch, "New reroll glitch was not detected.");
+var rerolledExplosion = Reroll(Roll(new RollOptions(2,Exploding:true),5,2),new RollOptions(2,Exploding:true),6,6,5);
+Assert(rerolledExplosion.Hits == 4 && rerolledExplosion.Dice.Length == 4, "Exploding reroll did not retain hits or continue sixes.");
+var rerolledCinematic = Reroll(Roll(new RollOptions(2,Cinematic:true),4,2),new RollOptions(2,Cinematic:true),5);
+Assert(rerolledCinematic.Dice.SequenceEqual(new[]{4,5}) && rerolledCinematic.Hits == 2, "Cinematic reroll discarded a hit.");
+var rerolledBubble = Reroll(bubbleRoll,new RollOptions(4,Bubble:true),5,5);
+Assert(!rerolledBubble.Glitch && rerolledBubble.Hits == 4 && rerolledBubble.BubbleDie is null, "Old bubble die was included in the desktop reroll.");
+var variableReroll = Reroll(Roll(new RollOptions(3,VariableGlitch:true),5,2,3),new RollOptions(3,VariableGlitch:true,Bubble:true),5,5,1);
+Assert(variableReroll.Hits == 3 && variableReroll.BubbleDie == 1 && !variableReroll.Glitch, "Variable threshold/bubble reroll mismatch.");
+Reject(()=>DicePool.RerollMisses(Roll(new RollOptions(2),5,6),new RollOptions(2)));
+Reject(()=>DicePool.RerollMisses(standard,new RollOptions(4),()=>7));
+Console.WriteLine("PASS: miss rerolls retain hits and desktop glitch state; exploding/cinematic dice, new glitches, variable thresholds and old/new bubble handling.");
+var largeRoll = Roll(new RollOptions(4,Method:RollMethod.Large),2,3,4,6);
+Assert(largeRoll.Hits == 3 && !largeRoll.Glitch && largeRoll.MeetsThreshold(3) && !largeRoll.MeetsThreshold(4), "Large mode or success threshold mismatch.");
+var largeReroll = Reroll(largeRoll,new RollOptions(4,Method:RollMethod.Large),3);
+Assert(largeReroll.Hits == 4 && largeReroll.Dice.SequenceEqual(new[]{3,4,6,3}), "Large-mode reroll discarded its 3/4 hits.");
+var reallyLargeRoll = Roll(new RollOptions(3,Method:RollMethod.ReallyLarge),1,3,6);
+Assert(reallyLargeRoll.Hits == 10 && reallyLargeRoll.Glitch && !reallyLargeRoll.CriticalGlitch, "Really Large total or desktop glitch behavior mismatch.");
+Assert(!Roll(new RollOptions(3,VariableGlitch:true,Method:RollMethod.ReallyLarge),1,3,6).Glitch, "Really Large variable threshold mismatch.");
+Reject(()=>DicePool.RerollMisses(reallyLargeRoll,new RollOptions(3,Method:RollMethod.ReallyLarge)));
+Reject(()=>DicePool.Roll(new RollOptions(2,Method:(RollMethod)99)));
+Reject(()=>largeRoll.MeetsThreshold(0));
+Console.WriteLine("PASS: desktop Large/Really Large roll methods, method-specific rerolls and threshold success/failure comparisons.");
 
 var tracker = new InitiativeTracker(); tracker.Add("A", 21); tracker.Add("B", 11); tracker.Add("C", 21);
 Assert(string.Join(",", tracker.Order.Select(e => e.Name)) == "A,C,B", "Initiative order/tie mismatch.");

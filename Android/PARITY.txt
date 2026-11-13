@@ -28,8 +28,9 @@ PARTIAL — Career: manual ledger and damage records; finalization, advancement,
 buyoffs, expenses/undo integration and complete career editing pending.
 PARTIAL — Contacts: standard draft contacts; imported contacts and expanded rules pending.
 PENDING — Lifestyles and their options, advanced qualities, cost/roommate rules.
-PARTIAL — Play tools: core dice and initiative pass tracking; rerolls, extended
-tests, complete initiative rules and character-linked combat workflows pending.
+PARTIAL — Play tools: core dice, desktop alternative methods, threshold comparisons,
+miss rerolls and initiative pass tracking; extended tests, complete initiative
+rules and character-linked combat workflows pending.
 PARTIAL — Sheets: portable summary and Android PDF printing; desktop XSL templates pending.
 PARTIAL — Localization/catalogs: offline XML browsing; translations, sourcebooks,
 settings, custom-data merges and house-rule profiles pending.

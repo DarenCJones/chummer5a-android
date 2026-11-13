@@ -562,17 +562,35 @@ public partial class WorkbenchActivity : Activity
     {
         var form = Form(); var count = Input(form.Layout, "Dice pool", "10"); count.InputType = InputTypes.ClassNumber;
         var gremlins = Input(form.Layout, "Gremlins rating", "0"); gremlins.InputType = InputTypes.ClassNumber;
+        var method = Select(form.Layout,"Roll method",new[] { "Standard", "Large", "Really Large" });
+        var threshold = Input(form.Layout,"Success threshold (0 disables)","0"); threshold.InputType = InputTypes.ClassNumber;
         CheckBox Check(string label) { var c = new CheckBox(this) { Text = label }; form.Layout.AddView(c); return c; }
         var exploding = Check("Exploding sixes"); var cinematic = Check("Cinematic hits (4+)");
         var rushed = Check("Rushed job"); var variable = Check("Variable glitch threshold"); var bubble = Check("Bubble die");
         var results = new TextView(this);
+        PoolRoll? lastRoll = null; RollOptions? lastOptions = null; var lastThreshold = 0;
+        void Display(PoolRoll roll)
+        {
+            results.Text = (lastThreshold > 0 ? $"{(roll.MeetsThreshold(lastThreshold) ? "Success" : "Failure")} (threshold {lastThreshold})\n" : "") +
+                $"Hits: {roll.Hits}\n{(roll.CriticalGlitch ? "Critical glitch" : roll.Glitch ? "Glitch" : "No glitch")}\nDice: {string.Join(", ", roll.Dice)}" +
+                (roll.BubbleDie is null ? "" : $"\nBubble die: {roll.BubbleDie}");
+        }
         Button(form.Layout, "Roll", () =>
         {
             if (!int.TryParse(count.Text, out var pool) || !int.TryParse(gremlins.Text, out var g)) throw new ArgumentException("Enter whole numbers.");
-            var roll = DicePool.Roll(new RollOptions(pool, exploding.Checked, cinematic.Checked, rushed.Checked, g, variable.Checked, bubble.Checked));
-            results.Text = $"Hits: {roll.Hits}\n{(roll.CriticalGlitch ? "Critical glitch" : roll.Glitch ? "Glitch" : "No glitch")}\nDice: {string.Join(", ", roll.Dice)}" +
-                (roll.BubbleDie is null ? "" : $"\nBubble die: {roll.BubbleDie}");
+            if (!int.TryParse(threshold.Text,out var successThreshold) || successThreshold is < 0 or > 100000) throw new ArgumentException("Enter a success threshold from 0 to 100000.");
+            var options = new RollOptions(pool, exploding.Checked, cinematic.Checked, rushed.Checked, g, variable.Checked, bubble.Checked, (RollMethod)method.SelectedItemPosition);
+            var roll = DicePool.Roll(options);
+            lastOptions = options; lastRoll = roll; lastThreshold = successThreshold; Display(roll);
         });
+        Button(form.Layout,"Reroll misses", () =>
+        {
+            if (lastRoll is null || lastOptions is null) throw new InvalidOperationException("Roll a dice pool first.");
+            var roll = DicePool.RerollMisses(lastRoll,lastOptions);
+            lastRoll = roll; Display(roll);
+        });
+        form.Layout.AddView(new TextView(this) { Text = "Reroll misses keeps hits and uses the options from the original roll. Edge costs are handled manually." });
+        form.Layout.AddView(new TextView(this) { Text = "Desktop modes: Standard counts 5–6 (4–6 for cinematic play); Large counts 3–6; Really Large totals die faces and uses the desktop mode's glitch rules." });
         form.Layout.AddView(results);
         new AlertDialog.Builder(this)!.SetTitle("Dice pool")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();
     }

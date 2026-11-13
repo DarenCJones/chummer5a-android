@@ -31,6 +31,7 @@ Implemented in this preview:
 - Standard draft point budgets, natural maxima and one-free-native-language validation.
 - Unaugmented core metatype draft limits, initiative and condition monitor calculations.
 - Dice pools with exploding sixes, cinematic/rushed options, Gremlins, variable glitches and bubble dice.
+- Desktop Standard/Large/Really Large roll methods, success thresholds and miss rerolls with retained hits and desktop glitch/bubble handling.
 - Initiative order, pass advancement and persistence; ties use entry order for manual resolution.
 - Standard draft contacts with Charisma budgets and per-contact caps.
 - Android printing / Save as PDF for a portable character summary.
@@ -47,7 +48,7 @@ Still pending for desktop feature parity:
 - Imported-contact editing, lifestyle, vehicles/drones and detailed combat/Matrix/magic workflows.
 - Custom-data merging, house-rule settings, sourcebook selection and translations.
 - Original desktop sheet templates and remaining import/export utilities.
-- Dice reroll/extended-test modes, full initiative tie-breaking and other desktop tools.
+- Extended-test workflows, full initiative tie-breaking and remaining desktop tools.
 - Hub and plugin integrations. Desktop plugin binaries require platform-specific ports.
 - Production signing, updated release toolchain, device testing, accessibility and Android lifecycle QA.
 
@@ -65,6 +66,7 @@ Validation:
 - Core power cost/choice coverage, saved improvements, augmented stats, skill caps and power removal/refunds pass.
 - Equipment wallet atomicity, equipped effects, armor stacking caps/penalties and melee damage updates pass.
 - Quality costs/limits, bidirectional conflicts, Bilingual removal safety, conditional bonuses and specialization cost/refund checks pass.
+- Miss rerolls, preserved/new glitches, retained hits, exploding/cinematic/alternative methods and success-threshold checks pass.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:
@@ -83,4 +85,5 @@ Android runtime checks on the API 34 emulator:
 - Adept draft creation, Improved Reflexes learning, Armor Jacket/Combat Knife purchases and their effects/wallet persist after force-stop/relaunch.
 - Selected quality and active specialization workflows/persistence are checked separately from desktop parity; see PARITY.txt for outstanding areas.
 - Catlike selection, Pistols specialization point spending and their records/pools survive force-stop/relaunch on the emulator.
+- Dice miss reroll retained hits, threshold success display, Really Large mode and no-misses handling passed emulator checks.
 - Preview trimming and AOT are disabled after the trimmed build aborted in Mono startup.
