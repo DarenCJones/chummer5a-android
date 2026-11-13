@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.4
+Chummer standalone Android port — preview 0.5 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -17,6 +17,12 @@ Implemented in this preview:
 - Core Hermetic/Shamanic traditions, default technomancer stream and unaugmented drain/fading pools.
 - Core spell, ritual, preparation and complex-form learning, free allowances and creation Karma costs/refunds.
 - Drain/fading expression calculator and magic details in printable summaries.
+- All 27 visible core SR5 adept powers: choices, rating limits, power-point costs, save records and removal.
+- Mystic adept creation power-point purchases/refunds at 5 Karma each, capped by Magic.
+- Permanent power effects on attributes, initiative dice, limits, armor, trained skill pools and unarmed attacks.
+- Wound penalties, armor accessory caps/encumbrance, defense and damage resistance pools.
+- Purchase/equip/unequip/remove for 35 supported fixed-price core armor and weapon entries, with creation Nuyen refunds.
+- Strength-linked melee damage, accuracy bonuses, reach and equipment state in summaries.
 - Draft attribute, individual active skill, skill group, knowledge and language allocation.
 - Standard draft point budgets, natural maxima and one-free-native-language validation.
 - Unaugmented core metatype draft limits, initiative and condition monitor calculations.
@@ -29,8 +35,9 @@ Implemented in this preview:
 
 Still pending for desktop feature parity:
 - Metavariants, other metatypes, Karma/Life Module creation and final creation validation.
-- Adept powers, mystic adept power-point purchases, summoning/binding, sprites and detailed magic/Matrix play.
-- Qualities, specializations, equipment purchasing, augmentations and their improvement effects.
+- Adept Way discounts, initiation, activated/situational power tests, summoning/binding, sprites and detailed magic/Matrix play.
+- Qualities, specializations, full equipment catalogs, ammunition, bundled accessories, modifications, electronics and augmentations.
+- Active spell effects, wireless bonuses, weapon firing workflows, carrying-weight penalties and equipment house rules.
 - Full calculations, skill/attribute advancement and derived effects for imported characters.
 - Imported-contact editing, lifestyle, vehicles/drones and detailed combat/Matrix/magic workflows.
 - Custom-data merging, house-rule settings, sourcebook selection and translations.
@@ -50,6 +57,8 @@ Validation:
 - Truncated and oversized compressed input rejected.
 - Profile, damage, ledger atomicity, dice, initiative, catalog and creation-budget checks pass.
 - Talent priorities, bonus skill choices, traditions, learning costs/refunds and older draft compatibility checks pass.
+- Core power cost/choice coverage, saved improvements, augmented stats, skill caps and power removal/refunds pass.
+- Equipment wallet atomicity, equipped effects, armor stacking caps/penalties and melee damage updates pass.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:
@@ -65,4 +74,5 @@ Android runtime checks on the API 34 emulator:
 - Launch, Human draft creation/save/reopen, profile editing/persistence, and dice rolling passed.
 - Android print flow produced a valid PDF summary.
 - Older draft reopening and Magician creation/tradition/spell persistence are tested on the emulator.
+- Adept draft creation, Improved Reflexes learning, Armor Jacket/Combat Knife purchases and their effects/wallet persist after force-stop/relaunch.
 - Preview trimming and AOT are disabled after the trimmed build aborted in Mono startup.

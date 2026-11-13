@@ -93,6 +93,9 @@ public sealed partial class CharacterDocument
             if (((int?)node.Element("base") ?? 0) + (names.Contains(name) ? rating : 0) + GroupRating(group) > 6)
                 throw new ArgumentException("Reset some paid skill or group points before changing priority bonus skills.");
         }
+        var proposedSkills = SkillNodes.ToDictionary(s => s.Element("name")!.Value, s =>
+            DraftSkillRating(s.Element("suid")!.Value) - FreeSkillRating(s.Element("name")!.Value) + (names.Contains(s.Element("name")!.Value) ? rating : 0));
+        ValidatePowerConstraints(skillRatings: proposedSkills);
         var grants = names.Select(name => CreationRules.BuiltInImprovement("SkillBase", "Heritage", "", name, rating)).ToArray();
         var improvements = document.Root!.Element("improvements")!;
         improvements.Elements("improvement").Where(e => (string?)e.Element("improvementttype") == "SkillBase" &&

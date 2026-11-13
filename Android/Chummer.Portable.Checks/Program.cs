@@ -337,3 +337,104 @@ var technoSheet = CharacterSheet.SummaryHtml(techno);
 Assert(technoSheet.Contains("Default") && technoSheet.Contains("Firewall") && technoSheet.Contains("Complex form"),
     "Technomancer summary omitted the stream or parameterized ability.");
 Console.WriteLine("PASS: magical and technomancer summaries include traditions/streams, resistance pools and learned ability details.");
+using var powerData = File.OpenRead(Path.Combine(root, "Chummer", "data", "powers.xml"));
+var powerRules = new PowerRules(powerData);
+var powerAdept = adept.Clone();
+var pistol = creation.Skills(powerAdept).Single(s => s.Name == "Pistols");
+powerAdept.SetDraftSkill(pistol.Id, 3);
+foreach (var entry in powerRules.Catalog)
+{
+    var candidate = powerAdept.Clone(); var choices = powerRules.Choices(entry.Id, candidate, creation);
+    var extra = choices.FirstOrDefault() ?? (powerRules.FreeTextChoice(entry.Id) ? "Low-Light Vision" : "");
+    powerRules.Learn(candidate, creation, entry.Id, 1, extra);
+    Assert(candidate.LearnedPowers.Count == 1 && candidate.PowerPointsRemaining == 4 - entry.PointsPerLevel - entry.ExtraCost,
+        "Core power cost mismatch: " + entry.Name);
+    using var compressed = new MemoryStream(); candidate.SaveCompressed(compressed); compressed.Position = 0;
+    var reopenedPower = CharacterDocument.LoadCompressed(compressed);
+    Assert(XNode.DeepEquals(Xml(candidate), Xml(reopenedPower)), "Power data or effects changed during compressed export.");
+    _ = reopenedPower.EffectiveStats();
+}
+Assert(powerRules.Catalog.Count == 27, "Unexpected visible core adept power coverage.");
+string PowerId(string name) => powerRules.Catalog.Single(p => p.Name == name).Id;
+powerRules.Learn(powerAdept, creation, PowerId("Improved Reflexes"), 2);
+powerRules.Learn(powerAdept, creation, PowerId("Mystic Armor"), 2);
+powerRules.Learn(powerAdept, creation, PowerId("Combat Sense"), 1);
+var augmented = powerAdept.EffectiveStats();
+Assert(augmented.Attributes["REA"] == 3 && augmented.Initiative == 4 && augmented.InitiativeDice == 3 &&
+    augmented.Armor == 2 && augmented.DefensePool == 5 && powerAdept.PowerPointsRemaining == 0,
+    "Adept attribute, initiative, armor or defense effects mismatch.");
+Assert(powerAdept.DraftRacialBonus("Armor") == 0, "Adept armor was reported as racial armor.");
+var beforePowerReject = Xml(powerAdept);
+Reject(() => powerRules.Learn(powerAdept, creation, PowerId("Danger Sense"), 1));
+Reject(() => powerRules.Learn(powerAdept, creation, PowerId("Improved Reflexes"), 4));
+Assert(XNode.DeepEquals(beforePowerReject, Xml(powerAdept)), "Rejected power changed character data.");
+powerAdept.RemoveDraftPower(powerAdept.LearnedPowers.Single(p => p.Name == "Mystic Armor").Id);
+Assert(powerAdept.EffectiveStats().Armor == 0 && powerAdept.PowerPointsRemaining == 1, "Power removal did not remove effects/refund PP.");
+var skilledAdept = adept.Clone(); skilledAdept.SetDraftSkill(pistol.Id, 3);
+powerRules.Learn(skilledAdept, creation, PowerId("Improved Ability (skill)"), 2, "Pistols");
+Assert(skilledAdept.DraftSkillPool(creation.Skills(skilledAdept).Single(s => s.Name == "Pistols")) == 6 && skilledAdept.SkillPointsRemaining == adept.SkillPointsRemaining - 3,
+    "Improved Ability did not affect the pool independently of paid skill points.");
+Reject(() => skilledAdept.SetDraftSkill(pistol.Id, 2));
+var physicalAdept = adept.Clone(); powerRules.Learn(physicalAdept, creation, PowerId("Improved Physical Attribute"), 1, "BOD");
+Assert(physicalAdept.EffectiveStats().Attributes["BOD"] == 2 && physicalAdept.DraftAttributes.Single(a => a.Name == "BOD").Rating == 1 &&
+    physicalAdept.AttributePointsRemaining == adept.AttributePointsRemaining, "Power effects changed natural allocation.");
+powerRules.Learn(physicalAdept, creation, PowerId("Killing Hands"), 1);
+powerRules.Learn(physicalAdept, creation, PowerId("Critical Strike"), 1, "Unarmed Combat");
+Assert(physicalAdept.DraftUnarmedAttack().Damage == "2P", "Unarmed adept damage/type mismatch.");
+var mysticPowers = mystic.Clone(); mysticPowers.SetMysticPowerPoints(4);
+Assert(mysticPowers.Karma == 5 && mysticPowers.PowerPointsTotal == 4 && mysticPowers.Field("magsplitadept") == "4", "Mystic adept PP purchase/save field mismatch.");
+powerRules.Learn(mysticPowers, creation, PowerId("Improved Reflexes"), 1);
+Reject(() => mysticPowers.SetMysticPowerPoints(1)); mysticPowers.SetMysticPowerPoints(2);
+Assert(mysticPowers.Karma == 15 && mysticPowers.PowerPointsRemaining == 0.5m, "Mystic adept PP refund mismatch.");
+Reject(() => draft.SetMysticPowerPoints(1));
+var limitedAdept = adept.Clone(); limitedAdept.SetDraftAttributes(new Dictionary<string,int> { ["MAG"] = 5 });
+powerRules.Learn(limitedAdept, creation, PowerId("Improved Reflexes"), 3);
+powerRules.Learn(limitedAdept, creation, PowerId("Mystic Armor"), 2);
+var beforeMagicReduction = Xml(limitedAdept);
+Reject(() => limitedAdept.SetDraftAttributes(new Dictionary<string,int> { ["MAG"] = 4 }));
+Assert(XNode.DeepEquals(beforeMagicReduction, Xml(limitedAdept)), "Lowering Magic overspent power points or partially changed attributes.");
+var painAdept = adept.Clone(); painAdept.SetDamage(6, 3);
+Assert(painAdept.EffectiveStats().WoundPenalty == 3, "Separate monitor wound penalties mismatch.");
+powerRules.Learn(painAdept, creation, PowerId("Pain Resistance"), 2);
+Assert(painAdept.EffectiveStats().WoundPenalty == 1, "Pain Resistance did not offset both monitors.");
+var limitAdept = adept.Clone(); powerRules.Learn(limitAdept, creation, PowerId("Improved Potential (Social)"), 1);
+Assert(limitAdept.EffectiveStats().SocialLimit == limitAdept.DraftStats().SocialLimit + 1 && Xml(limitAdept).Descendants("improvement").Any(e =>
+    (string?)e.Element("improvementttype") == "SocialLimit" && (string?)e.Element("improvedname") == "Social"), "Limit bonus or desktop improvement name mismatch.");
+Console.WriteLine("PASS: 27 visible core adept powers, costs/choices, compatible improvement records, augmented statistics, removal and mystic adept Karma purchases/refunds.");
+using var armorData = File.OpenRead(Path.Combine(root, "Chummer", "data", "armor.xml"));
+using var weaponData = File.OpenRead(Path.Combine(root, "Chummer", "data", "weapons.xml"));
+var equipmentRules = new EquipmentRules(armorData, weaponData);
+var equippedDraft = physicalAdept.Clone(); equippedDraft.SetDraftAttributes(new Dictionary<string,int> { ["STR"] = 4 });
+var jacket = equipmentRules.Catalog.Single(e => e.Name == "Armor Jacket");
+var knife = equipmentRules.Catalog.Single(e => e.Name == "Combat Knife");
+var helmet = equipmentRules.Catalog.Single(e => e.Name == "Helmet");
+var startCash = equippedDraft.Nuyen;
+equipmentRules.Purchase(equippedDraft, jacket.Id, true); equipmentRules.Purchase(equippedDraft, knife.Id, true); equipmentRules.Purchase(equippedDraft, helmet.Id, true);
+Assert(equippedDraft.Nuyen == startCash - jacket.Cost - knife.Cost - helmet.Cost && equippedDraft.EffectiveStats().Armor == 14 &&
+    equippedDraft.DraftWeapons().Single().Damage == "6P" && equippedDraft.DraftWeapons().Single().Accuracy == 6, "Equipment costs, stacking or weapon expressions mismatch.");
+equippedDraft.SetDraftAttributes(new Dictionary<string,int> { ["STR"] = 1 });
+equipmentRules.Purchase(equippedDraft, helmet.Id, true);
+Assert(equippedDraft.EffectiveStats().Armor == 13 && equippedDraft.EffectiveStats().ArmorPenalty == 1 && equippedDraft.DraftWeapons().Single().Damage == "3P",
+    "Bonus armor cap/encumbrance or Strength-linked damage did not update.");
+var jacketItem = equippedDraft.DraftEquipment.Single(e => e.Name == "Armor Jacket");
+equippedDraft.EquipDraftItem(jacketItem.Id, false);
+Assert(equippedDraft.EffectiveStats().Armor == 1, "Unequipping armor left its rating active.");
+var cashBeforeRefund = equippedDraft.Nuyen; equippedDraft.RemoveDraftEquipment(jacketItem.Id);
+Assert(equippedDraft.Nuyen == cashBeforeRefund + jacket.Cost, "Creation equipment removal did not refund its purchase price.");
+var emptyWallet = adept.Clone();
+while (emptyWallet.Nuyen >= jacket.Cost) equipmentRules.Purchase(emptyWallet, jacket.Id, false);
+var beforePurchaseReject = Xml(emptyWallet);
+Reject(() => equipmentRules.Purchase(emptyWallet, jacket.Id, true));
+Assert(XNode.DeepEquals(beforePurchaseReject, Xml(emptyWallet)), "Rejected purchase changed the wallet or inventory.");
+Assert(!equipmentRules.Catalog.Any(e => e.Name == "Ares Predator V"), "Bundled smartgun accessory was silently discarded.");
+var effectSheet = CharacterSheet.SummaryHtml(equippedDraft);
+Assert(effectSheet.Contains("Adept powers") && effectSheet.Contains("Killing Hands") && effectSheet.Contains("Combat Knife: 3P") &&
+    effectSheet.Contains("Helmet: Equipped"), "Printable summary omitted powers, weapon effects or equipment state.");
+using (var equipmentBuffer = new MemoryStream())
+{
+    equippedDraft.SaveCompressed(equipmentBuffer); equipmentBuffer.Position = 0;
+    var reopenedEquipment = CharacterDocument.LoadCompressed(equipmentBuffer);
+    Assert(XNode.DeepEquals(Xml(equippedDraft), Xml(reopenedEquipment)) && reopenedEquipment.DraftWeapons().Single().Damage == "3P" &&
+        reopenedEquipment.EffectiveStats().Armor == 1, "Equipment/power state or calculated effects changed after reopening.");
+}
+Console.WriteLine($"PASS: {equipmentRules.Catalog.Count} supported core armor/weapons, Nuyen budgets/refunds, equipped effects, bonus armor caps/penalties and Strength-linked weapon statistics.");

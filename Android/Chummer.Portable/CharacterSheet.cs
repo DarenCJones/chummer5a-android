@@ -18,6 +18,32 @@ public static class CharacterSheet
         if (character.IsAndroidDraft)
         {
             var stats = character.DraftStats();
+            var effective = character.EffectiveStats();
+            html.Append("<h2>Calculated permanent effects</h2><p>").Append(Encode(
+                $"Attributes: {string.Join(", ", effective.Attributes.Select(a => $"{a.Key} {a.Value}"))}\n" +
+                $"Limits: Physical {effective.PhysicalLimit}, Mental {effective.MentalLimit}, Social {effective.SocialLimit}\n" +
+                $"Initiative: {effective.Initiative} + {effective.InitiativeDice}D6\nArmor: {effective.Armor}; armor penalty: {effective.ArmorPenalty}; wound penalty: {effective.WoundPenalty}\n" +
+                $"Defense: {effective.DefensePool}; damage resistance before AP: {effective.SoakPool}\nCondition monitors: {effective.PhysicalBoxes} Physical / {effective.StunBoxes} Stun"))
+                .Append("</p><p>Active powers, ammunition, situational modifiers and carrying-weight penalties require manual handling.</p>");
+            if (character.Field("adept") == "True")
+            {
+                html.Append("<h2>Adept powers</h2><p>").Append(Encode($"Power points remaining: {character.PowerPointsRemaining:0.##} / {character.PowerPointsTotal:0.##}"))
+                    .Append("</p><ul>");
+                foreach (var power in character.LearnedPowers)
+                    html.Append("<li>").Append(Encode($"{power.Name} {power.Extra}: rating {power.Rating}; {power.Cost:0.##} PP")).Append("</li>");
+                html.Append("</ul>");
+            }
+            html.Append("<h2>Weapon statistics</h2><ul>");
+            foreach (var weapon in character.DraftWeapons().Prepend(character.DraftUnarmedAttack()))
+                html.Append("<li>").Append(Encode($"{weapon.Name}: {weapon.Damage}; accuracy {weapon.Accuracy}; AP {weapon.AP}; reach {weapon.Reach}")).Append("</li>");
+            html.Append("</ul>");
+            if (character.DraftEquipment.Count > 0)
+            {
+                html.Append("<h2>Equipment state</h2><ul>");
+                foreach (var item in character.DraftEquipment)
+                    html.Append("<li>").Append(Encode($"{item.Name}: {(item.Equipped ? "Equipped" : "Stored")}")).Append("</li>");
+                html.Append("</ul>");
+            }
             html.Append("<p>").Append(Encode($"Unfinished {character.Field("prioritytalent").ToLowerInvariant()} {character.Metatype} draft. Creation has not been finalized."))
                 .Append("</p><h2>Natural attributes</h2><table><tr><th>Attribute</th><th>Rating</th></tr>");
             foreach (var a in character.DraftAttributes)

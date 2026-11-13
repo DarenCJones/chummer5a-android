@@ -106,8 +106,11 @@ public sealed partial class CharacterDocument
     public decimal DraftRacialBonus(string type)
     {
         RequireDraft();
+        var racialSources = document.Root!.Element("qualities")!.Elements("quality").Where(e => (string?)e.Element("qualitysource") == "Metatype")
+            .Select(e => (string?)e.Element("guid")).ToHashSet();
         return document.Root!.Element("improvements")!.Elements("improvement")
             .Where(e => (string?)e.Element("androidbuiltin") == "True" && (string?)e.Element("improvementttype") == type && (int?)e.Element("enabled") == 1)
+            .Where(e => (string?)e.Element("improvementsource") == "Metatype" || (string?)e.Element("improvementsource") == "Quality" && racialSources.Contains((string?)e.Element("sourcename")))
             .Sum(e => decimal.Parse(e.Element("val")!.Value, CultureInfo.InvariantCulture));
     }
     public IReadOnlyList<string> DraftRacialQualities

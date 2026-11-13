@@ -177,7 +177,8 @@ public sealed partial class CharacterDocument
         if (document.Root!.Element("improvements")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
             document.Root.Element("qualities")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
             document.Root.Element("gears")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
-            new[] { "cyberwares", "biowares", "weapons", "armors", "vehicles", "powers" }.Any(collection => document.Root.Element(collection)?.HasElements == true))
+            new[] { "powers", "weapons", "armors" }.Any(collection => document.Root.Element(collection)?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true) ||
+            new[] { "cyberwares", "biowares", "vehicles" }.Any(collection => document.Root.Element(collection)?.HasElements == true))
             throw new InvalidOperationException("This draft has effects that the creation editor cannot yet calculate.");
     }
     private IEnumerable<XElement> AttributeNodes => document.Root!.Element("attributes")!.Elements("attribute");
@@ -210,6 +211,7 @@ public sealed partial class CharacterDocument
             throw new ArgumentException("Lower knowledge or language ratings before reducing their point budget.");
         if (Contacts.Sum(c => c.Connection + c.Loyalty) > 3 * proposed.Single(e => e.Name == "CHA").Rating)
             throw new ArgumentException("Lower contact costs before reducing Charisma.");
+        ValidatePowerConstraints(proposed.ToDictionary(a => a.Name, a => a.Rating));
         foreach (var a in proposed)
         {
             var node = AttributeNodes.Single(e => (string?)e.Element("name") == a.Name);
@@ -246,6 +248,9 @@ public sealed partial class CharacterDocument
         var free = FreeGroupRating(name);
         if (rating < free) throw new ArgumentException($"This talent grants a free group rating of {free}.");
         if (rating - free - current > GroupPointsRemaining) throw new ArgumentException("Not enough skill group points.");
+        var memberRatings = SkillNodes.ToDictionary(s => s.Element("name")!.Value, s => DraftSkillRating(s.Element("suid")!.Value) +
+            ((string?)s.Element("skillgroup") == name ? rating - GroupRating(name) : 0));
+        ValidatePowerConstraints(skillRatings: memberRatings);
         group.SetElementValue("base", rating - free);
     }
     public int SkillPointsRemaining => (int?)document.Root!.Element("newskills")?.Element("skillptsmax") -
@@ -262,6 +267,8 @@ public sealed partial class CharacterDocument
         var free = FreeSkillRating(node.Element("name")!.Value);
         if (rating < free) throw new ArgumentException($"This talent grants a free skill rating of {free}.");
         if (rating - free - current > SkillPointsRemaining) throw new ArgumentException("Not enough skill points.");
+        var proposedSkills = SkillNodes.ToDictionary(s => s.Element("name")!.Value, s => s == node ? rating : DraftSkillRating(s.Element("suid")!.Value));
+        ValidatePowerConstraints(skillRatings: proposedSkills);
         node.SetElementValue("base", rating - free);
     }
     public IReadOnlyList<DraftKnowledge> DraftKnowledgeSkills

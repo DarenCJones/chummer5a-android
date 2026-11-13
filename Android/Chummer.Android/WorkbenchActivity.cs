@@ -45,7 +45,7 @@ public partial class WorkbenchActivity : Activity
         var scroll = new ScrollView(this); scroll.AddView(layout);
         shell.AddView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
         SetContentView(shell);
-        layout.AddView(new TextView(this) { Text = "Offline development preview. Core metahuman drafts include magical and technomancer talents, spells, preparations and complex forms. Creation finalization, adept powers, equipment upgrades and calculations for imported characters are still being ported." });
+        layout.AddView(new TextView(this) { Text = "Offline development preview. Create core metahuman drafts, assign talents and powers, buy supported equipment, and use play tools. Creation finalization and full calculations for imported characters are still being ported." });
         MenuButton(layout, "Create a character draft", CreateDraft, "Create");
         MenuButton(layout, "Import character", Import, "Characters");
         MenuButton(layout, "Import compressed character (.chum5lz)", () => Import(true), "Characters");
@@ -57,6 +57,8 @@ public partial class WorkbenchActivity : Activity
         MenuButton(layout, "Allocate draft skill groups", EditGroups, "Create");
         MenuButton(layout, "Assign priority bonus skills", EditTalentSkills, "Create");
         MenuButton(layout, "Magic and resonance", EditMagic, "Create");
+        MenuButton(layout, "Adept powers", EditPowers, "Create");
+        MenuButton(layout, "Purchase / equip draft equipment", EditEquipment, "Create");
         MenuButton(layout, "Draft knowledge and languages", EditKnowledge, "Create");
         MenuButton(layout, "Add Karma / Nuyen transaction", AddTransaction, "Play");
         MenuButton(layout, "Track damage", EditDamage, "Play");
@@ -453,13 +455,14 @@ public partial class WorkbenchActivity : Activity
             try
             {
             var stats = c.DraftStats();
+            lines.Add(EffectsSummary(c));
             lines.Add($"\nDraft — creation is not finalized\nAttributes: {string.Join(", ", c.DraftAttributes.Select(a => $"{a.Name} {a.Rating}"))}\n" +
                 $"Points remaining: {c.AttributePointsRemaining} attributes; {c.SpecialPointsRemaining} special; {c.SkillPointsRemaining} skills; {c.GroupPointsRemaining} groups; {c.KnowledgePointsRemaining} knowledge\n" +
                 $"Unaugmented limits: physical {stats.PhysicalLimit}, mental {stats.MentalLimit}, social {stats.SocialLimit}\n" +
                 $"Initiative: {stats.Initiative} + 1D6\nCondition monitors: {stats.PhysicalBoxes} physical / {stats.StunBoxes} stun\n" +
                 $"Knowledge-point budget: {stats.KnowledgePoints}; contact-point budget: {stats.ContactPoints}");
             var trained = Creation().Skills(c).Where(s => s.Rating > 0);
-            lines.Add("\nActive skills\n" + string.Join("\n", trained.Select(s => $"{s.Name}: {s.Rating}")));
+            lines.Add("\nActive skills\n" + string.Join("\n", trained.Select(s => $"{s.Name}: rating {s.Rating}; pool {c.DraftSkillPool(s)}")));
             lines.Add("\nKnowledge and languages\n" + string.Join("\n", c.DraftKnowledgeSkills.Select(k => $"{k.Name}: {(k.Native ? "Native" : k.Rating.ToString())}")));
             lines.Add($"\nRacial traits: {string.Join(", ", c.DraftRacialQualities)}\nNatural armor: {c.DraftRacialBonus("Armor")}; reach bonus: {c.DraftRacialBonus("Reach")}\nLifestyle cost adjustment: {c.DraftRacialBonus("LifestyleCost")}%");
             if (c.Field("magenabled") == "True" || c.Field("resenabled") == "True")
@@ -526,7 +529,7 @@ public partial class WorkbenchActivity : Activity
     private void About()
     {
         var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.4\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Adept powers and full magic/Matrix play are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
+        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.5\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Full magic/Matrix play, attachments, ammunition and augmentations are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
         using var license = Assets!.Open("LICENSE.txt"); using var reader = new StreamReader(license);
         form.Layout.AddView(new TextView(this) { Text = reader.ReadToEnd() });
         new AlertDialog.Builder(this).SetTitle("About this preview")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();
