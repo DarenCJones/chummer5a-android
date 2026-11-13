@@ -2,9 +2,9 @@ name: Android preview
 on:
   push:
     branches: [android-port]
-    paths: ['Android/**', '.github/workflows/android-port.yml']
+    paths: ['Android/**', 'Chummer/7zip/**', 'Chummer/Backend/Helpers/FetchSafelyFromArrayPool.cs', 'Chummer/data/**', 'Chummer.Tests/TestFiles/**', '.github/workflows/android-port.yml']
   pull_request:
-    paths: ['Android/**', '.github/workflows/android-port.yml']
+    paths: ['Android/**', 'Chummer/7zip/**', 'Chummer/Backend/Helpers/FetchSafelyFromArrayPool.cs', 'Chummer/data/**', 'Chummer.Tests/TestFiles/**', '.github/workflows/android-port.yml']
   workflow_dispatch:
 permissions:
   contents: read

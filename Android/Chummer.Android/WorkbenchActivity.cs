@@ -11,7 +11,7 @@ using System.Text.Json;
 
 namespace Chummer.AndroidApp;
 
-public class WorkbenchActivity : Activity
+public partial class WorkbenchActivity : Activity
 {
     private TextView status = null!;
     private CharacterDocument? character;
@@ -45,8 +45,8 @@ public class WorkbenchActivity : Activity
         var scroll = new ScrollView(this); scroll.AddView(layout);
         shell.AddView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
         SetContentView(shell);
-        layout.AddView(new TextView(this) { Text = "Offline development preview. Core mundane draft creation, profile editing, manual career records and play tools are available. Magic, other creation paths, upgrades and calculations for imported characters are still being ported." });
-        MenuButton(layout, "Create a mundane draft", CreateDraft, "Create");
+        layout.AddView(new TextView(this) { Text = "Offline development preview. Core metahuman drafts include magical and technomancer talents, spells, preparations and complex forms. Creation finalization, adept powers, equipment upgrades and calculations for imported characters are still being ported." });
+        MenuButton(layout, "Create a character draft", CreateDraft, "Create");
         MenuButton(layout, "Import character", Import, "Characters");
         MenuButton(layout, "Import compressed character (.chum5lz)", () => Import(true), "Characters");
         MenuButton(layout, "Open saved character", OpenRoster, "Characters");
@@ -55,6 +55,8 @@ public class WorkbenchActivity : Activity
         MenuButton(layout, "Allocate draft attributes", EditAttributes, "Create");
         MenuButton(layout, "Allocate draft skills", EditSkills, "Create");
         MenuButton(layout, "Allocate draft skill groups", EditGroups, "Create");
+        MenuButton(layout, "Assign priority bonus skills", EditTalentSkills, "Create");
+        MenuButton(layout, "Magic and resonance", EditMagic, "Create");
         MenuButton(layout, "Draft knowledge and languages", EditKnowledge, "Create");
         MenuButton(layout, "Add Karma / Nuyen transaction", AddTransaction, "Play");
         MenuButton(layout, "Track damage", EditDamage, "Play");
@@ -89,7 +91,8 @@ public class WorkbenchActivity : Activity
             }
         }
         catch (Exception e) { status.Text = $"Unable to restore saved state: {e.Message}"; }
-        SetTab(state?.GetString("tab") ?? "Characters");
+        try { SetTab(state?.GetString("tab") ?? "Characters"); }
+        catch (Exception e) { status.Text = $"Unable to display character summary: {e.Message}. Use Open saved character or export the file to recover it."; }
     }
 
     protected override void OnSaveInstanceState(Bundle state)
@@ -183,7 +186,8 @@ public class WorkbenchActivity : Activity
         using var metatypes = Assets.Open("data/metatypes.xml");
         using var skills = Assets.Open("data/skills.xml");
         using var qualities = Assets.Open("data/qualities.xml");
-        return creationRules = new CreationRules(priorities, metatypes, skills, qualities);
+        using var gear = Assets.Open("data/gear.xml");
+        return creationRules = new CreationRules(priorities, metatypes, skills, qualities, gear);
     }
     private Spinner Select(LinearLayout layout, string label, string[] choices, int selected = 0)
     {
@@ -194,7 +198,7 @@ public class WorkbenchActivity : Activity
     private void CreateDraft()
     {
         var rules = Creation(); var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Create an unfinished mundane metahuman under standard core rules. Talent is E. Racial traits are included. Allocate attributes, skills, knowledge and languages. Selected qualities, equipment and final career validation are pending." });
+        form.Layout.AddView(new TextView(this) { Text = "Create an unfinished metahuman under standard core priority rules. Racial and talent traits are included. Magical and technomancer creation remains in development; character finalization is pending." });
         var name = Input(form.Layout, "Name"); var alias = Input(form.Layout, "Alias");
         var metatypeNames = CreationRules.CoreMetatypes.ToArray();
         var metatype = Select(form.Layout, "Metatype", metatypeNames);
@@ -204,24 +208,40 @@ public class WorkbenchActivity : Activity
         var attributes = Select(form.Layout, "Attribute priority", letters, 0);
         var skills = Select(form.Layout, "Skill priority", letters, 1);
         var resources = Select(form.Layout, "Resource priority", letters, 2);
+        var talentPriority = Select(form.Layout, "Talent priority", letters, 4);
+        var talentOptions = rules.Talents("E").ToArray();
+        var talent = Select(form.Layout, "Talent", talentOptions.Select(t => t.Name).ToArray());
+        string[] aspects = ["Sorcery", "Conjuring", "Enchanting"];
+        var aspect = Select(form.Layout, "Aspected magician group (when applicable)", aspects);
         var budget = new TextView(this); form.Layout.AddView(budget);
         PriorityChoice Choice() => new(method.SelectedItemPosition == 0 ? "Priority" : "SumtoTen",
             letters[heritage.SelectedItemPosition], letters[attributes.SelectedItemPosition],
-            letters[skills.SelectedItemPosition], letters[resources.SelectedItemPosition]);
+            letters[skills.SelectedItemPosition], letters[resources.SelectedItemPosition], letters[talentPriority.SelectedItemPosition],
+            talentOptions[Math.Max(0, talent.SelectedItemPosition)].Path, aspects[aspect.SelectedItemPosition]);
         void Refresh()
         {
             try
             {
                 var b = rules.Budget(Choice(), metatypeNames[metatype.SelectedItemPosition]);
-                budget.Text = $"Attribute points: {b.Attributes}\nSpecial points: {b.Special}\nSkill points: {b.Skills}\nSkill group points: {b.SkillGroups}\nResources: {b.Nuyen:N0} Nuyen";
+                var t = talentOptions[Math.Max(0, talent.SelectedItemPosition)];
+                budget.Text = $"Attribute points: {b.Attributes}\nSpecial points: {b.Special}\nSkill points: {b.Skills}\nSkill group points: {b.SkillGroups}\nResources: {b.Nuyen:N0} Nuyen\n" +
+                    $"Magic: {t.Magic}; Resonance: {t.Resonance}\nSpells: {t.Spells}; Complex forms: {t.ComplexForms}\nBonus skills: {t.FreeSkillCount} at {t.FreeSkillRating}; bonus groups: {t.FreeGroupCount} at {t.FreeGroupRating}";
             }
             catch (ArgumentException e) { budget.Text = e.Message; }
         }
         foreach (var spinner in new[] { metatype, method, heritage, attributes, skills, resources }) spinner.ItemSelected += (_, _) => Refresh();
-        Refresh();
-        EditDialog("New mundane draft", form.Scroll, () =>
+        talentPriority.ItemSelected += (_, _) =>
         {
-            var draft = rules.CreateMundaneDraft(name.Text ?? "", alias.Text ?? "", Choice(), metatypeNames[metatype.SelectedItemPosition]);
+            talentOptions = rules.Talents(letters[talentPriority.SelectedItemPosition]).ToArray();
+            talent.Adapter = new ArrayAdapter<string>(this, global::Android.Resource.Layout.SimpleSpinnerDropDownItem, talentOptions.Select(t => t.Name).ToArray());
+            talent.SetSelection(0); Refresh();
+        };
+        talent.ItemSelected += (_, _) => Refresh(); aspect.ItemSelected += (_, _) => Refresh();
+        Refresh();
+        EditDialog("New character draft", form.Scroll, () =>
+        {
+            var draft = rules.CreateDraft(name.Text ?? "", alias.Text ?? "", Choice(), metatypeNames[metatype.SelectedItemPosition]);
+            if (draft.Field("technomancer") == "True") Magic().SetTradition(draft, "Default");
             var file = Path.Combine(RosterDirectory, Guid.NewGuid().ToString("N") + ".chum5");
             using (var output = File.Create(file + ".tmp")) draft.Save(output);
             File.Move(file + ".tmp", file); Open(file);
@@ -247,7 +267,7 @@ public class WorkbenchActivity : Activity
     private void EditSkills()
     {
         var c = RequireCharacter();
-        if (!c.IsAndroidDraft) throw new InvalidOperationException("Skill allocation currently supports core mundane drafts created in this app.");
+        if (!c.IsAndroidDraft) throw new InvalidOperationException("Skill allocation currently supports core priority drafts created in this app.");
         var skills = Creation().Skills(c).ToArray();
         new AlertDialog.Builder(this).SetTitle($"Active skills — {c.SkillPointsRemaining} points left")!
             .SetItems(skills.Select(s => $"{s.Name}: {s.Rating}").ToArray(), (_, args) => Guard(() =>
@@ -261,6 +281,26 @@ public class WorkbenchActivity : Activity
                     Commit(updated => updated.SetDraftSkill(skill.Id, rating));
                 });
             }))!.Show();
+    }
+    private void EditTalentSkills()
+    {
+        var c = RequireCharacter(); var count = c.TalentSkillChoicesRequired;
+        if (count == 0) throw new InvalidOperationException("This talent grants no individual bonus skill choices. Aspected magician group grants are applied automatically.");
+        var candidates = Creation().TalentSkillCandidates(c).ToArray();
+        var selected = candidates.Select(s => c.TalentSkillChoices.Contains(s.Name)).ToArray();
+        var dialog = new AlertDialog.Builder(this).SetTitle($"Choose {count} skills at rating {c.TalentFreeSkillRating}")!
+            .SetMultiChoiceItems(candidates.Select(s => s.Name).ToArray(), selected, (_, args) => selected[args.Which] = args.IsChecked)!
+            .SetNegativeButton("Cancel", (_, _) => { })!.SetPositiveButton("Save", (_, _) => { })!.Create()!;
+        dialog.Show();
+        dialog.GetButton((int)DialogButtonType.Positive)!.Click += (_, _) =>
+        {
+            try
+            {
+                var names = candidates.Where((_, index) => selected[index]).Select(s => s.Name).ToArray();
+                Commit(updated => Creation().AssignTalentSkills(updated, names)); dialog.Dismiss();
+            }
+            catch (Exception e) { new AlertDialog.Builder(this).SetMessage(e.Message)!.SetPositiveButton("OK", (_, _) => { })!.Show(); }
+        };
     }
     private void EditGroups()
     {
@@ -405,9 +445,13 @@ public class WorkbenchActivity : Activity
     }
     private void ShowCharacter()
     {
-        var c = RequireCharacter(); var lines = new List<string> { c.Summary() };
+        var c = RequireCharacter(); var lines = new List<string>();
+        try { lines.Add(c.Summary()); }
+        catch { lines.Add($"{c.Name}\nAlias: {c.Alias}\nMetatype: {c.Metatype}\nSome stored values are not recognized by this preview. The character file can still be exported."); }
         if (c.IsAndroidDraft)
         {
+            try
+            {
             var stats = c.DraftStats();
             lines.Add($"\nDraft — creation is not finalized\nAttributes: {string.Join(", ", c.DraftAttributes.Select(a => $"{a.Name} {a.Rating}"))}\n" +
                 $"Points remaining: {c.AttributePointsRemaining} attributes; {c.SpecialPointsRemaining} special; {c.SkillPointsRemaining} skills; {c.GroupPointsRemaining} groups; {c.KnowledgePointsRemaining} knowledge\n" +
@@ -418,6 +462,12 @@ public class WorkbenchActivity : Activity
             lines.Add("\nActive skills\n" + string.Join("\n", trained.Select(s => $"{s.Name}: {s.Rating}")));
             lines.Add("\nKnowledge and languages\n" + string.Join("\n", c.DraftKnowledgeSkills.Select(k => $"{k.Name}: {(k.Native ? "Native" : k.Rating.ToString())}")));
             lines.Add($"\nRacial traits: {string.Join(", ", c.DraftRacialQualities)}\nNatural armor: {c.DraftRacialBonus("Armor")}; reach bonus: {c.DraftRacialBonus("Reach")}\nLifestyle cost adjustment: {c.DraftRacialBonus("LifestyleCost")}%");
+            if (c.Field("magenabled") == "True" || c.Field("resenabled") == "True")
+                lines.Add($"\nTradition / stream: {c.TraditionName}\nPriority bonus skills chosen: {c.TalentSkillChoices.Count}/{c.TalentSkillChoicesRequired}\n" +
+                    string.Join("\n", c.LearnedSpells.Select(s => $"{s.Name} {s.Extra} — {(s.Preparation ? "Preparation" : "Spell / ritual")}; Drain {s.Difficulty}")) +
+                    "\n" + string.Join("\n", c.LearnedForms.Select(f => $"{f.Name} {f.Extra} — Fading {f.Difficulty}")));
+            }
+            catch { lines.Add("This preview cannot calculate all values in this file. Its saved data is retained; profile editing and export remain available."); }
         }
         foreach (var (collection, item, title) in new[] { ("weapons", "weapon", "Weapons"), ("armors", "armor", "Armor"),
             ("gears", "gear", "Gear"), ("cyberwares", "cyberware", "Augmentations"), ("vehicles", "vehicle", "Vehicles"),
@@ -476,7 +526,7 @@ public class WorkbenchActivity : Activity
     private void About()
     {
         var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.4\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support mundane Humans, Elves, Dwarfs, Orks and Trolls under standard Priority or Sum-to-Ten rules. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
+        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.4\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Adept powers and full magic/Matrix play are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
         using var license = Assets!.Open("LICENSE.txt"); using var reader = new StreamReader(license);
         form.Layout.AddView(new TextView(this) { Text = reader.ReadToEnd() });
         new AlertDialog.Builder(this).SetTitle("About this preview")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();

@@ -104,7 +104,8 @@ using var priorityData = File.OpenRead(Path.Combine(root, "Chummer", "data", "pr
 using var metatypeData = File.OpenRead(Path.Combine(root, "Chummer", "data", "metatypes.xml"));
 using var skillData = File.OpenRead(Path.Combine(root, "Chummer", "data", "skills.xml"));
 using var qualityData = File.OpenRead(Path.Combine(root, "Chummer", "data", "qualities.xml"));
-var creation = new CreationRules(priorityData, metatypeData, skillData, qualityData);
+using var gearData = File.OpenRead(Path.Combine(root, "Chummer", "data", "gear.xml"));
+var creation = new CreationRules(priorityData, metatypeData, skillData, qualityData, gearData);
 var priorities = new PriorityChoice("Priority", "D", "A", "B", "C");
 var budget = creation.Budget(priorities);
 Assert(budget.Attributes == 24 && budget.Special == 3 && budget.Skills == 36 && budget.SkillGroups == 5 && budget.Nuyen == 140000,
@@ -241,3 +242,98 @@ Assert(legacyGender.Field("gender") == "Female", "Legacy gender fallback failed.
 legacyGender.SetProfile(new Dictionary<string,string> { ["gender"] = "Nonbinary" });
 Assert(legacyGender.Field("gender") == "Nonbinary" && legacyGender.Field("sex") == "Nonbinary", "Modern/legacy gender fields diverged.");
 Console.WriteLine("PASS: five core mundane metatypes, racial improvement records, natural limits and legacy/modern profile compatibility.");
+var magicianPriority = new PriorityChoice("Priority", "E", "B", "C", "D", "A", "Magician");
+var mage = creation.CreateDraft("Mage", "", magicianPriority, "Human");
+Assert(mage.DraftAttributes.Single(a => a.Name == "MAG").Rating == 6 && mage.Field("magician") == "True" && mage.TalentSkillChoicesRequired == 2,
+    "Magician starting Magic/flags/grants mismatch.");
+creation.AssignTalentSkills(mage, ["Spellcasting", "Counterspelling"]);
+var spellcasting = creation.Skills(mage).Single(s => s.Name == "Spellcasting");
+Assert(spellcasting.Rating == 5 && mage.SkillPointsRemaining == 28, "Free priority skills consumed paid points.");
+mage.SetDraftSkill(spellcasting.Id, 6);
+Assert(mage.SkillPointsRemaining == 27, "Skill increase above free priority rating charged incorrectly.");
+Reject(() => mage.SetDraftSkill(spellcasting.Id, 4));
+Reject(() => creation.AssignTalentSkills(mage, ["Pistols", "Counterspelling"]));
+Reject(() => creation.AssignTalentSkills(mage, ["Spellcasting", "Spellcasting"]));
+var aspectedPriority = new PriorityChoice("Priority", "D", "A", "C", "E", "B", "Aspected Magician", "Sorcery");
+var aspected = creation.CreateDraft("Aspected", "", aspectedPriority, "Human");
+Assert(aspected.DraftAttributes.Single(a => a.Name == "MAG").Rating == 5 && aspected.DraftGroups.Single(g => g.Name == "Sorcery").Rating == 4 &&
+    aspected.GroupPointsRemaining == 2 && !creation.Skills(aspected).Any(s => s.Name == "Summoning"), "Aspected magician skill/group restrictions mismatch.");
+aspected.SetDraftGroup("Sorcery", 6);
+Assert(aspected.GroupPointsRemaining == 0 && creation.Skills(aspected).Single(s => s.Name == "Spellcasting").Rating == 6, "Free group increase charged incorrectly.");
+var techno = creation.CreateDraft("Technomancer", "", magicianPriority with { Path = "Technomancer" }, "Human");
+Assert(techno.DraftAttributes.Single(a => a.Name == "RES").Rating == 6 && techno.TalentSkillChoices.Count == 3 &&
+    creation.Skills(techno).Single(s => s.Name == "Compiling").Rating == 5 && techno.SkillPointsRemaining == 28,
+    "Technomancer starting Resonance/free skills mismatch.");
+Assert(techno.OwnedItems("gears", "gear").Contains("Living Persona") && techno.Field("activecommlink").Length > 0, "Technomancer living persona missing.");
+techno.SetDraftGroup("Tasking", 1);
+Reject(() => techno.SetDraftGroup("Tasking", 2));
+var adept = creation.CreateDraft("Adept", "", new PriorityChoice("Priority", "D", "A", "B", "E", "C", "Adept"), "Human");
+Assert(adept.Field("adept") == "True" && adept.Field("magician") == "False" && adept.DraftAttributes.Single(a => a.Name == "MAG").Rating == 4 &&
+    !creation.Skills(adept).Any(s => s.Name == "Spellcasting"), "Adept flags/skill restrictions mismatch.");
+var mystic = creation.CreateDraft("Mystic", "", aspectedPriority with { Path = "Mystic Adept" }, "Human");
+Assert(mystic.Field("adept") == "True" && mystic.Field("magician") == "True", "Mystic adept talent flags mismatch.");
+Reject(() => creation.Budget(magicianPriority with { Talent = "D" }));
+Console.WriteLine("PASS: Magician, Adept, Mystic Adept, Aspected Magician and Technomancer priorities, skill grants and living persona setup.");
+using var spellData = File.OpenRead(Path.Combine(root, "Chummer", "data", "spells.xml"));
+using var formData = File.OpenRead(Path.Combine(root, "Chummer", "data", "complexforms.xml"));
+using var traditionData = File.OpenRead(Path.Combine(root, "Chummer", "data", "traditions.xml"));
+using var streamData = File.OpenRead(Path.Combine(root, "Chummer", "data", "streams.xml"));
+var magicRules = new MagicRules(spellData, formData, traditionData, streamData);
+magicRules.SetTradition(mage, "Hermetic");
+Assert(mage.TraditionName == "Hermetic" && mage.DraftDrainPool() == 2, "Hermetic tradition/drain mismatch.");
+mage.SetDraftAttributes(new Dictionary<string,int> { ["WIL"] = 4, ["LOG"] = 4 });
+Assert(mage.DraftDrainPool() == 8, "Drain pool did not follow attribute changes.");
+magicRules.SetTradition(mage, "Shamanic");
+Assert(mage.DraftDrainPool() == 5, "Shamanic drain pool mismatch.");
+var plainSpells = magicRules.Spells(mage).Where(s => !s.RequiresExtra).Take(11).ToArray();
+foreach (var spell in plainSpells) magicRules.LearnSpell(mage, spell.Id);
+Assert(mage.LearnedSpells.Count == 11 && mage.Karma == 20, "Free spell allowance / extra Karma cost mismatch.");
+var beforeSpellReject = Xml(mage);
+Reject(() => magicRules.LearnSpell(mage, plainSpells[0].Id));
+Assert(XNode.DeepEquals(beforeSpellReject, Xml(mage)), "Rejected duplicate spell changed data.");
+mage.RemoveDraftAbility("spells", mage.LearnedSpells[0].Id);
+Assert(mage.Karma == 25 && mage.LearnedSpells.Count == 10, "Spell removal did not refund the marginal Karma cost.");
+var increase = magicRules.Spells(mage).Single(s => s.Name == "Increase [Attribute]");
+Reject(() => magicRules.LearnSpell(mage, increase.Id));
+Reject(() => magicRules.LearnSpell(mage, increase.Id, "EDG"));
+magicRules.LearnSpell(mage, increase.Id, "bod");
+Assert(mage.LearnedSpells.Last().Extra == "BOD", "Attribute spell choice was not normalized.");
+var watcher = magicRules.Spells(mage).Single(s => s.Name == "Watcher");
+if (!mage.LearnedSpells.Any(s => s.Name == "Watcher")) magicRules.LearnSpell(mage, watcher.Id);
+var watcherLearned = mage.LearnedSpells.Single(s => s.Name == "Watcher");
+Assert(Xml(mage).Descendants("improvement").Any(i => (string?)i.Element("improvementttype") == "AddSpirit" &&
+    (string?)i.Element("sourcename") == watcherLearned.Id), "Watcher ritual spirit grant missing.");
+mage.RemoveDraftAbility("spells", watcherLearned.Id);
+Assert(!Xml(mage).Descendants("improvement").Any(i => (string?)i.Element("sourcename") == watcherLearned.Id), "Ritual removal left its spirit grant behind.");
+magicRules.SetTradition(techno, "Default");
+Assert(techno.DraftDrainPool() == 7, "Technomancer default fading pool mismatch.");
+foreach (var form in magicRules.ComplexForms(techno).Where(f => !f.RequiresExtra).Take(8)) magicRules.LearnComplexForm(techno, form.Id);
+Assert(techno.LearnedForms.Count == 8 && techno.Karma == 21, "Complex form free allowance / Karma cost mismatch.");
+techno.RemoveDraftAbility("complexforms", techno.LearnedForms[0].Id);
+Assert(techno.Karma == 25, "Complex form removal did not refund marginal Karma cost.");
+var diffusion = magicRules.ComplexForms(techno).Single(f => f.Name == "Diffusion of [Matrix Attribute]");
+magicRules.LearnComplexForm(techno, diffusion.Id, "Firewall");
+Assert(techno.LearnedForms.Last().Extra == "Firewall", "Complex form matrix-attribute choice missing.");
+Assert(MagicRules.EvaluateDifficulty("F-3", 6) == 3 && MagicRules.EvaluateDifficulty("L-2", 1) == 2, "Drain/fading expression evaluation mismatch.");
+Reject(() => MagicRules.EvaluateDifficulty("Special", 3));
+Reject(() => magicRules.LearnSpell(draft, plainSpells[0].Id));
+Assert(magicRules.Spells(adept).All(s => s.Category == "Rituals"), "Adept spell-category restriction mismatch.");
+Console.WriteLine("PASS: traditions, drain/fading pools, spell/form learning, priority allowances, Karma refunds, parameter choices and ritual spirit grants.");
+var legacyDraftXml = Xml(draft);
+var removedSkill = legacyDraftXml.Root!.Element("newskills")!.Element("skills")!.Elements("skill").First();
+var removedSkillId = removedSkill.Element("suid")!.Value; removedSkill.Remove();
+using (var legacyBuffer = new MemoryStream())
+{
+    legacyDraftXml.Save(legacyBuffer); legacyBuffer.Position = 0;
+    var olderDraft = CharacterDocument.Load(legacyBuffer);
+    Assert(!creation.Skills(olderDraft).Any(s => s.Id == removedSkillId), "A missing legacy skill was treated as a persisted skill.");
+}
+Console.WriteLine("PASS: older drafts remain readable when the current catalog contains additional skills.");
+var magicalSheet = CharacterSheet.SummaryHtml(mage);
+Assert(magicalSheet.Contains("Magic and resonance") && magicalSheet.Contains("Shamanic") &&
+    magicalSheet.Contains("Unaugmented drain / fading resistance: 5 dice") && magicalSheet.Contains("F-"),
+    "Magical summary omitted the tradition, resistance pool or learned ability difficulty.");
+var technoSheet = CharacterSheet.SummaryHtml(techno);
+Assert(technoSheet.Contains("Default") && technoSheet.Contains("Firewall") && technoSheet.Contains("Complex form"),
+    "Technomancer summary omitted the stream or parameterized ability.");
+Console.WriteLine("PASS: magical and technomancer summaries include traditions/streams, resistance pools and learned ability details.");

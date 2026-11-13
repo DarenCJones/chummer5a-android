@@ -11,7 +11,12 @@ Implemented in this preview:
 - Profile, appearance, concept, description and background editing.
 - Manual career Karma/Nuyen transactions with desktop-compatible expense records.
 - Manual physical/stun damage tracking and career history.
-- Human, Elf, Dwarf, Ork and Troll mundane creation drafts using Standard Priority or Sum-to-Ten budgets.
+- Human, Elf, Dwarf, Ork and Troll creation drafts using Standard Priority or Sum-to-Ten budgets.
+- Mundane, Magician, Adept, Mystic Adept, Aspected Magician and Technomancer talent priorities.
+- Priority bonus skills/groups, magical skill restrictions and technomancer living persona records.
+- Core Hermetic/Shamanic traditions, default technomancer stream and unaugmented drain/fading pools.
+- Core spell, ritual, preparation and complex-form learning, free allowances and creation Karma costs/refunds.
+- Drain/fading expression calculator and magic details in printable summaries.
 - Draft attribute, individual active skill, skill group, knowledge and language allocation.
 - Standard draft point budgets, natural maxima and one-free-native-language validation.
 - Unaugmented core metatype draft limits, initiative and condition monitor calculations.
@@ -23,7 +28,8 @@ Implemented in this preview:
 - Characters/Create/Play/Library navigation and an in-app license view.
 
 Still pending for desktop feature parity:
-- Metavariants, other metatypes, magic/resonance, Karma/Life Module creation and final creation validation.
+- Metavariants, other metatypes, Karma/Life Module creation and final creation validation.
+- Adept powers, mystic adept power-point purchases, summoning/binding, sprites and detailed magic/Matrix play.
 - Qualities, specializations, equipment purchasing, augmentations and their improvement effects.
 - Full calculations, skill/attribute advancement and derived effects for imported characters.
 - Imported-contact editing, lifestyle, vehicles/drones and detailed combat/Matrix/magic workflows.
@@ -43,6 +49,7 @@ Validation:
 - The same 34 fixtures preserved through compressed round trips using the upstream codec.
 - Truncated and oversized compressed input rejected.
 - Profile, damage, ledger atomicity, dice, initiative, catalog and creation-budget checks pass.
+- Talent priorities, bonus skill choices, traditions, learning costs/refunds and older draft compatibility checks pass.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:
@@ -57,4 +64,5 @@ The existing Windows solution is retained as the reference implementation.
 Android runtime checks on the API 34 emulator:
 - Launch, Human draft creation/save/reopen, profile editing/persistence, and dice rolling passed.
 - Android print flow produced a valid PDF summary.
+- Older draft reopening and Magician creation/tradition/spell persistence are tested on the emulator.
 - Preview trimming and AOT are disabled after the trimmed build aborted in Mono startup.

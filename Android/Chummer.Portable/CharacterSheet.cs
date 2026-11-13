@@ -18,7 +18,7 @@ public static class CharacterSheet
         if (character.IsAndroidDraft)
         {
             var stats = character.DraftStats();
-            html.Append("<p>").Append(Encode($"Unfinished mundane {character.Metatype} draft. Creation has not been finalized."))
+            html.Append("<p>").Append(Encode($"Unfinished {character.Field("prioritytalent").ToLowerInvariant()} {character.Metatype} draft. Creation has not been finalized."))
                 .Append("</p><h2>Natural attributes</h2><table><tr><th>Attribute</th><th>Rating</th></tr>");
             foreach (var a in character.DraftAttributes)
                 html.Append("<tr><td>").Append(Encode(a.Name)).Append("</td><td>").Append(a.Rating).Append("</td></tr>");
@@ -37,6 +37,21 @@ public static class CharacterSheet
                     html.Append("<li>").Append(Encode($"{k.Name} ({k.Type}): {(k.Native ? "Native" : k.Rating.ToString())}")).Append("</li>");
                 html.Append("</ul>");
             }
+            if (character.Field("magenabled") == "True" || character.Field("resenabled") == "True")
+            {
+                html.Append("<h2>Magic and resonance</h2><p>").Append(Encode(
+                    $"Talent: {character.Field("prioritytalent")}\nTradition / stream: {character.TraditionName}\n" +
+                    $"Priority bonus skills selected: {character.TalentSkillChoices.Count}/{character.TalentSkillChoicesRequired}"));
+                if (character.TraditionName.Length > 0)
+                    html.Append(Encode($"\nUnaugmented drain / fading resistance: {character.DraftDrainPool()} dice"));
+                html.Append("</p><table><tr><th>Ability</th><th>Type</th><th>Drain / fading</th></tr>");
+                foreach (var (ability, kind) in character.LearnedSpells.Select(a => (a, a.Preparation ? "Preparation" : a.Category))
+                    .Concat(character.LearnedForms.Select(a => (a, "Complex form"))))
+                    html.Append("<tr><td>").Append(Encode($"{ability.Name} {ability.Extra}".Trim()))
+                        .Append("</td><td>").Append(Encode(kind))
+                        .Append("</td><td>").Append(Encode(ability.Difficulty)).Append("</td></tr>");
+                html.Append("</table>");
+            }
         }
         else html.Append("<p>Stored character data only. Imported-character effects and derived ratings have not been recalculated.</p>");
         foreach (var (key, title) in new[] { ("playername", "Player"), ("concept", "Concept"), ("description", "Description"), ("background", "Background") })
@@ -45,9 +60,10 @@ public static class CharacterSheet
             if (!string.IsNullOrWhiteSpace(value)) html.Append("<h2>").Append(title).Append("</h2><p>").Append(Encode(value)).Append("</p>");
         }
         foreach (var (collection, item, title) in new[] { ("weapons", "weapon", "Weapons"), ("armors", "armor", "Armor"),
-            ("gears", "gear", "Gear"), ("cyberwares", "cyberware", "Augmentations"), ("vehicles", "vehicle", "Vehicles"), ("spells", "spell", "Spells"), ("qualities", "quality", "Qualities") })
+            ("gears", "gear", "Gear"), ("cyberwares", "cyberware", "Augmentations"), ("vehicles", "vehicle", "Vehicles"), ("spells", "spell", "Spells"), ("complexforms", "complexform", "Complex forms"), ("qualities", "quality", "Qualities") })
         {
             var items = character.OwnedItems(collection, item);
+            if (character.IsAndroidDraft && collection is "spells" or "complexforms") continue;
             if (items.Count == 0) continue;
             html.Append("<h2>").Append(title).Append("</h2><ul>");
             foreach (var name in items) html.Append("<li>").Append(Encode(name)).Append("</li>");

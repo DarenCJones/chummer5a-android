@@ -85,7 +85,7 @@ public sealed partial class CharacterDocument
         (document.Root!.Element(collection)?.Elements(item) ?? [])
         .Select(e => (string?)e.Element("name") ?? (string?)e.Element("english") ?? item).ToArray();
 
-    public string Summary() => $"{Name}\nAlias: {Alias}\nMetatype: {Metatype}\nMode: {(IsCareer ? "Career" : "Creation")}\nKarma: {Karma}\nNuyen: {Nuyen}\nPhysical damage: {PhysicalDamage}\nStun damage: {StunDamage}";
+    public string Summary() => $"{Name}\nAlias: {Alias}\nMetatype: {Metatype}\nTalent: {Field("prioritytalent")}\nMode: {(IsCareer ? "Career" : "Creation")}\nKarma: {Karma}\nNuyen: {Nuyen}\nPhysical damage: {PhysicalDamage}\nStun damage: {StunDamage}";
 
     public static CharacterDocument Load(Stream source)
     {
