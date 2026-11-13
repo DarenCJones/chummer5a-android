@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.8 (development checkpoint)
+Chummer standalone Android port — preview 0.9 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -23,7 +23,8 @@ Implemented in this preview:
 - Wound penalties, armor accessory caps/encumbrance, defense and damage resistance pools.
 - Purchase/equip/unequip/remove for 35 supported fixed-price core armor and weapon entries, with creation Nuyen refunds.
 - Strength-linked melee damage, accuracy bonuses, reach and equipment state in summaries.
-- 72 supported core quality templates: one-level purchases, positive/negative Karma limits, prerequisites, conflicts, refunds and saved improvement records.
+- 75 supported core quality templates: one-level purchases, positive/negative Karma limits, prerequisites, conflicts, refunds and saved improvement records.
+- Aptitude skill maxima, Exceptional Attribute natural maxima and Lucky Edge maxima, including allocation and removal validation.
 - Supported quality effects on trained skill pools, limits, damage resistance, wound thresholds and native-language allowances; conditional effects are shown separately.
 - One active skill specialization per skill during creation, costing 1 skill point or 7 Karma, with refunds and +2 situational pools.
 - Character-linked skill rolls with optional specialization and applicable conditional skill bonuses; untrained defaulting follows the catalog flags and standard -1 penalty.
@@ -48,7 +49,7 @@ Implemented in this preview:
 Still pending for desktop feature parity:
 - Metavariants, other metatypes, Karma/Life Module creation and final creation validation.
 - Adept Way discounts, initiation, activated/situational power tests, summoning/binding, sprites and detailed magic/Matrix play.
-- Remaining quality types (including mentor spirits, Aptitude and exceptional attributes), knowledge specializations and strict-group house rules.
+- Remaining quality types (including mentor spirits), knowledge specializations and strict-group house rules.
 - Full equipment catalogs, unusual loading systems, integrated attack/recoil workflows, remaining/bundled accessories, modifications and active electronics.
 - Burnout to zero, combined Improved Reflexes/initiative-implant interactions, cyberlimbs, modular/nested implants, remaining augmentations, Essence holes and additional grades.
 - Active spell effects, wireless bonuses, weapon firing workflows, carrying-weight penalties and equipment house rules.
@@ -100,4 +101,5 @@ Android runtime checks on the API 34 emulator:
 - A fresh mundane draft purchased Alphaware Wired Reflexes, 100 regular rounds, an AK-97 and a Laser Sight. Wallet, Essence, initiative, quantities, mount and accuracy effects survived force-stop/relaunch.
 - An AK-97 loaded 38 APDS rounds, applied AP -6, fired a 3-round burst and retained 35 rounds/AP effects after restart. A Magician installed Alphaware Dermal Plating and retained Magic 5 / Essence 5.60 after restart.
 - Switching tabs resets the content scroll position so the selected tab's tools remain discoverable.
+- Aptitude allowed Spellcasting 7 with the expected 12-die pool, cost and persistence; Exceptional Attribute allowed Body 7 with 12 physical boxes and the expected point spending in the emulator.
 - Preview trimming and AOT are disabled after the trimmed build aborted in Mono startup.

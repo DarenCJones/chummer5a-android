@@ -18,7 +18,7 @@ public sealed class QualityRules
         ["pathogencontactresist"]="PathogenContactResist", ["pathogeningestionresist"]="PathogenIngestionResist", ["pathogeninhalationresist"]="PathogenInhalationResist", ["pathogeninjectionresist"]="PathogenInjectionResist",
         ["toxincontactresist"]="ToxinContactResist", ["toxiningestionresist"]="ToxinIngestionResist", ["toxininhalationresist"]="ToxinInhalationResist", ["toxininjectionresist"]="ToxinInjectionResist"
     };
-    private static bool Supported(XElement q) => q.Element("firstlevelbonus") is null && q.Element("naturalweapons") is null &&
+    private static bool Supported(XElement q) => ((string?)q.Element("name") is "Aptitude" or "Exceptional Attribute" or "Lucky") || q.Element("firstlevelbonus") is null && q.Element("naturalweapons") is null &&
         (q.Element("bonus")?.Elements() ?? []).All(e => NumericEffects.ContainsKey(e.Name.LocalName) && decimal.TryParse(e.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out _) ||
             e.Name.LocalName is "selecttext" or "ambidextrous" || e.Name.LocalName is "specificskill" or "skillcategory" or "skillattribute" &&
                 e.Elements().All(c => c.Name.LocalName is "name" or "bonus" or "condition") && int.TryParse((string?)e.Element("bonus"), out _) ||
@@ -35,7 +35,8 @@ public sealed class QualityRules
     }
     public IReadOnlyList<QualityEntry> Catalog => qualities.Values.Select(q => new QualityEntry(q.Element("id")!.Value, q.Element("name")!.Value,
         q.Element("category")!.Value, (int)q.Element("karma")!, (string?)q.Element("limit") == "False" ? 0 : (int?)q.Element("limit") ?? 1,
-        q.Element("bonus")?.Element("selecttext") is not null, q.Element("page")!.Value)).OrderBy(q => q.Name).ToArray();
+        q.Element("bonus")?.Element("selecttext") is not null || (string?)q.Element("name") is "Aptitude" or "Exceptional Attribute", q.Element("page")!.Value)).OrderBy(q => q.Name).ToArray();
+    public IReadOnlyList<string> Choices(CharacterDocument c,string sourceId)=>c.QualityRatingChoices(Catalog.Single(q=>q.Id==sourceId).Name);
     private static bool Predicate(XElement e, CharacterDocument c) => e.Name.LocalName switch {
         "oneof" => e.Elements().Any(p => Predicate(p,c)), "allof" or "required" => e.Elements().All(p => Predicate(p,c)),
         "forbidden" => e.Elements().Any(p => Predicate(p,c)),
@@ -46,6 +47,7 @@ public sealed class QualityRules
         _ => throw new InvalidOperationException($"A prerequisite needs additional rule support: {e.Name}") };
     public void Validate(CharacterDocument c)
     {
+        c.ValidateDraftRatingLimits();
         foreach (var q in c.SelectedQualities)
         {
             var source = c.SelectedQualitySource(q.Id);
@@ -59,6 +61,8 @@ public sealed class QualityRules
         _ = character.DraftAttributes;
         if (!qualities.TryGetValue(sourceId, out var q)) throw new ArgumentException("This quality needs additional rule support.");
         var entry = Catalog.Single(e => e.Id == sourceId); extra = extra.Trim();
+        var options=character.QualityRatingChoices(entry.Name);
+        if(options.Count>0)extra=options.FirstOrDefault(v=>v.Equals(extra,StringComparison.OrdinalIgnoreCase))??throw new ArgumentException("Choose a valid skill or attribute for this quality.");
         if (entry.Choice ? extra.Length == 0 || extra.Length > 200 : extra.Length > 0) throw new ArgumentException("Enter the quality's required choice, or leave it blank when no choice is needed.");
         var count = character.SelectedQualities.Count(e => e.Name == entry.Name);
         if (entry.Maximum > 0 && count >= entry.Maximum || entry.Maximum == 0 && character.SelectedQualities.Any(e => e.Name == entry.Name && e.Extra.Equals(extra, StringComparison.OrdinalIgnoreCase)))
@@ -72,19 +76,25 @@ public sealed class QualityRules
             new XElement("contributetolimit", "True"), new XElement("qualitytype", entry.Category), new XElement("qualitysource", "Selected"),
             new XElement("source", "SR5"), new XElement("page", entry.Page), new XElement("androidbuiltin", "True"),
             q.Element("bonus") is { } bonus ? new XElement(bonus) : new XElement("bonus"), new XElement("notes", ""));
-        updated.AddSelectedQuality(quality, Effects(q.Element("bonus"), id), entry.Karma);
+        updated.AddSelectedQuality(quality, Effects(q.Element("bonus"), id,extra), entry.Karma);
         Validate(updated); character.ReplaceDraftWith(updated);
     }
     public void Remove(CharacterDocument character, string id)
     {
         var updated = character.Clone(); updated.RemoveSelectedQuality(id); Validate(updated); character.ReplaceDraftWith(updated);
     }
-    private static XElement[] Effects(XElement? bonus, string id)
+    private static XElement[] Effects(XElement? bonus, string id,string extra)
     {
         var effects = new List<XElement>();
         foreach (var b in bonus?.Elements() ?? [])
         {
             if (b.Name == "selecttext") continue;
+            if(b.Name.LocalName is "selectskill" or "selectattributes" or "specificattribute")
+            {
+                var skill=b.Name=="selectskill";var target=skill||b.Name=="selectattributes"?extra:b.Element("name")!.Value;
+                var effect=CreationRules.BuiltInImprovement(skill?"Skill":"Attribute","Quality",id,target,0);
+                effect.SetElementValue("max",1);effects.Add(effect);continue;
+            }
             if (b.Name == "conditionmonitor")
             {
                 foreach (var child in b.Elements()) effects.Add(CreationRules.BuiltInImprovement(child.Name.LocalName switch {

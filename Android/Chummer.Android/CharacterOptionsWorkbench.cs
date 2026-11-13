@@ -35,14 +35,16 @@ public partial class WorkbenchActivity
         var all = Qualities().Catalog.ToArray(); var items = all; var form = Form();
         var search = Input(form.Layout, "Search qualities"); var choice = Select(form.Layout, "Quality", items.Select(q => q.Name).ToArray());
         var extra = Input(form.Layout, "Quality choice (when required)"); var details = new TextView(this); form.Layout.AddView(details);
-        form.Layout.AddView(new TextView(this) { Text = "Each purchase adds one level. Numeric supported effects update automatically; situational, activated and narrative effects follow the sourcebook. More quality types, mentor spirits, attribute/skill limit choices and custom rules are being ported." });
+        form.Layout.AddView(new TextView(this) { Text = "Each purchase adds one level. Numeric supported effects and supported rating limits update automatically; situational, activated and narrative effects follow the sourcebook. More quality types, mentor spirits and custom rules are being ported." });
         void Refresh()
         {
             if (items.Length == 0) { details.Text = "No matching supported qualities."; return; }
             var q = items[Math.Clamp(choice.SelectedItemPosition, 0, items.Length-1)];
+            var options=Qualities().Choices(RequireCharacter(),q.Id);
+            if(options.Count>0 && string.IsNullOrWhiteSpace(extra.Text))extra.Text=options[0];
             details.Text = $"{q.Category}; {(q.Karma >= 0 ? "cost" : "gain")} {Math.Abs(q.Karma)} Karma per level\n" +
                 (q.Maximum == 0 ? "Repeatable with different choices." : $"Maximum levels: {q.Maximum}") + $"\nSR5 p. {q.Page}\n" +
-                (q.Choice ? "Enter the required substance, allegiance, location or other choice." : "No extra choice is required.");
+                (options.Count>0?"Choose: "+string.Join(", ",options):q.Choice ? "Enter the required substance, allegiance, location or other choice." : "No extra choice is required.");
         }
         search.TextChanged += (_, _) =>
         {

@@ -242,7 +242,7 @@ public sealed partial class CharacterDocument
         var group = GroupNodes.SingleOrDefault(g => (string?)g.Element("name") == name) ?? throw new ArgumentException("Unknown skill group.");
         if (rating > 0 && SkillNodes.Any(s => (string?)s.Element("skillgroup") == name && ((int?)s.Element("base") ?? 0) > 0))
             throw new ArgumentException("Reset individual member skills before allocating group points.");
-        if (SkillNodes.Any(s => (string?)s.Element("skillgroup") == name && FreeSkillRating(s.Element("name")!.Value) + rating > 6))
+        if (SkillNodes.Any(s => (string?)s.Element("skillgroup") == name && FreeSkillRating(s.Element("name")!.Value) + rating > DraftSkillMaximum(s.Element("name")!.Value)))
             throw new ArgumentException("This group rating would exceed a member skill's creation limit.");
         var current = (int?)group.Element("base") ?? 0;
         var free = FreeGroupRating(name);
@@ -258,9 +258,10 @@ public sealed partial class CharacterDocument
     public void SetDraftSkill(string id, int rating)
     {
         RequireDraft();
-        if (rating is < 0 or > 6) throw new ArgumentException("Skill rating must be from 0 to 6.");
         var node = document.Root!.Element("newskills")!.Element("skills")!.Elements("skill").SingleOrDefault(e => (string?)e.Element("suid") == id)
             ?? throw new ArgumentException("Unknown skill.");
+        var maximum=DraftSkillMaximum(node.Element("name")!.Value);
+        if(rating<0 || rating>maximum)throw new ArgumentException($"Skill rating must be from 0 to {maximum}.");
         var current = (int?)node.Element("base") ?? 0;
         if (GroupRating((string?)node.Element("skillgroup") ?? "") > 0)
             throw new ArgumentException("This skill follows its group rating. Edit the group to change the rating.");

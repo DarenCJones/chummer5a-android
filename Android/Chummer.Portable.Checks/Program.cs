@@ -746,3 +746,46 @@ gearRules.Purchase(limitedModeRunner,regularAmmo.Id,20,limitedModeEntry.Category
 limitedModeRunner.LoadDraftWeapon(limitedWeapon.Id,limitedModeRunner.DraftPurchasedGear.Single().Id,Math.Min(20,limitedModeRunner.DraftLoadedAmmunition.Single().Capacity));
 var beforeInvalidBurst=Xml(limitedModeRunner);Reject(()=>limitedModeRunner.FireDraftWeapon(limitedWeapon.Id,3));
 Assert(XNode.DeepEquals(beforeInvalidBurst,Xml(limitedModeRunner)),"Burst fire on a semi-auto/single-shot weapon changed the loaded rounds.");
+var aptitudeRunner=creation.CreateDraft("Aptitude","",priorities,"Human");
+qualityRules.Add(aptitudeRunner,QualityId("Aptitude"),"pistols");aptitudeRunner.SetDraftSkill(pistol.Id,7);
+Assert(aptitudeRunner.DraftSkillMaximum("Pistols")==7 && aptitudeRunner.SkillPointsRemaining==29 && aptitudeRunner.Karma==11 &&
+    aptitudeRunner.DraftSkillPool(creation.Skills(aptitudeRunner).Single(s=>s.Id==pistol.Id))==8,"Aptitude limit/cost or ordinary skill pool mismatch.");
+var blades=creation.Skills(aptitudeRunner).Single(s=>s.Name=="Blades");Reject(()=>aptitudeRunner.SetDraftSkill(blades.Id,7));
+var beforeAptitudeRemoval=Xml(aptitudeRunner);Reject(()=>qualityRules.Remove(aptitudeRunner,aptitudeRunner.SelectedQualities.Single().Id));
+Assert(XNode.DeepEquals(beforeAptitudeRemoval,Xml(aptitudeRunner)),"Removing a required skill maximum partially changed the character.");
+aptitudeRunner.SetDraftSkill(pistol.Id,6);qualityRules.Remove(aptitudeRunner,aptitudeRunner.SelectedQualities.Single().Id);
+Assert(aptitudeRunner.DraftSkillMaximum("Pistols")==6 && aptitudeRunner.Karma==25,"Aptitude removal did not restore the limit/refund.");
+var exceptionalRunner=creation.CreateDraft("Exceptional","",priorities,"Human");
+Reject(()=>qualityRules.Add(exceptionalRunner,QualityId("Exceptional Attribute"),"EDG"));
+qualityRules.Add(exceptionalRunner,QualityId("Exceptional Attribute"),"bod");exceptionalRunner.SetDraftAttributes(new Dictionary<string,int>{["BOD"]=7});
+Assert(exceptionalRunner.DraftAttributes.Single(a=>a.Name=="BOD").Maximum==7 && exceptionalRunner.AttributePointsRemaining==18 && exceptionalRunner.DraftStats().PhysicalBoxes==12,
+    "Exceptional Attribute maximum, allocation or condition monitor mismatch.");
+var beforeExceptionalRemoval=Xml(exceptionalRunner);Reject(()=>qualityRules.Remove(exceptionalRunner,exceptionalRunner.SelectedQualities.Single().Id));
+Assert(XNode.DeepEquals(beforeExceptionalRemoval,Xml(exceptionalRunner)),"Exceptional Attribute removal left an invalid rating.");
+exceptionalRunner.SetDraftAttributes(new Dictionary<string,int>{["BOD"]=6,["AGI"]=6});
+Reject(()=>qualityRules.Remove(exceptionalRunner,exceptionalRunner.SelectedQualities.Single().Id));
+exceptionalRunner.SetDraftAttributes(new Dictionary<string,int>{["BOD"]=5});qualityRules.Remove(exceptionalRunner,exceptionalRunner.SelectedQualities.Single().Id);
+Assert(exceptionalRunner.Karma==25 && exceptionalRunner.DraftAttributes.Single(a=>a.Name=="BOD").Maximum==6,"Exceptional Attribute removal/refund mismatch.");
+var luckyRunner=creation.CreateDraft("Lucky","",new PriorityChoice("Priority","A","B","C","D"),"Human");
+qualityRules.Add(luckyRunner,QualityId("Lucky"));luckyRunner.SetDraftAttributes(new Dictionary<string,int>{["EDG"]=8});
+Assert(luckyRunner.DraftAttributes.Single(a=>a.Name=="EDG").Maximum==8 && luckyRunner.Karma==13,"Lucky did not raise the human Edge maximum to 8.");
+using(var limitsBuffer=new MemoryStream())
+{
+    luckyRunner.SaveCompressed(limitsBuffer);limitsBuffer.Position=0;var reopenedLimits=CharacterDocument.LoadCompressed(limitsBuffer);
+    Assert(XNode.DeepEquals(Xml(luckyRunner),Xml(reopenedLimits)) && reopenedLimits.DraftAttributes.Single(a=>a.Name=="EDG").Rating==8,"Quality-modified rating limits changed after reopening.");
+}
+Reject(()=>qualityRules.Remove(luckyRunner,luckyRunner.SelectedQualities.Single().Id));
+luckyRunner.SetDraftAttributes(new Dictionary<string,int>{["EDG"]=7});qualityRules.Remove(luckyRunner,luckyRunner.SelectedQualities.Single().Id);
+Assert(luckyRunner.Karma==25 && luckyRunner.DraftAttributes.Single(a=>a.Name=="EDG").Maximum==7,"Lucky removal failed to restore its cost/limit.");
+var giftedMage=creation.CreateDraft("Exceptional magic","",magicianPriority,"Human");
+qualityRules.Add(giftedMage,QualityId("Exceptional Attribute"),"MAG");giftedMage.SetDraftAttributes(new Dictionary<string,int>{["MAG"]=7});
+augmentationRules.Purchase(giftedMage,ImplantId("Dermal Plating"),1,"Standard");
+Assert(giftedMage.DraftAttributes.Single(a=>a.Name=="MAG").Rating==6 && giftedMage.DraftAttributes.Single(a=>a.Name=="MAG").Maximum==6,
+    "Exceptional Magic and Essence loss did not combine correctly.");
+Reject(()=>qualityRules.Remove(giftedMage,giftedMage.SelectedQualities.Single().Id));
+var giftedSkillsMage=creation.CreateDraft("Gifted skill","",magicianPriority,"Human");
+qualityRules.Add(giftedSkillsMage,QualityId("Aptitude"),"Spellcasting");creation.AssignTalentSkills(giftedSkillsMage,["Spellcasting","Summoning"]);
+giftedSkillsMage.SetDraftGroup("Sorcery",2);
+Assert(creation.Skills(giftedSkillsMage).Single(s=>s.Name=="Spellcasting").Rating==7,"Aptitude did not allow a priority grant/group combination at rating 7.");
+Reject(()=>creation.AssignTalentSkills(giftedSkillsMage,["Counterspelling","Summoning"]));
+Console.WriteLine("PASS: Aptitude, Exceptional Attribute and Lucky choices/limits, point costs, safe removal, maximum-count rules, priority grants and Essence-loss interactions.");

@@ -152,7 +152,8 @@ public sealed partial class CharacterDocument
     private DraftAttribute ReadDraftAttribute(XElement node)
     {
         var name=node.Element("name")!.Value;
-        var essence=document.Root!.Element("improvements")!.Elements("improvement").Where(e=>(string?)e.Element("improvementsource")=="EssenceLossChargen" &&
+        var essence=document.Root!.Element("improvements")!.Elements("improvement").Where(e=>(string?)e.Element("androidbuiltin")=="True" &&
+            (string?)e.Element("improvementttype")=="Attribute" && string.IsNullOrEmpty((string?)e.Element("condition")) &&
             (string?)e.Element("improvedname")==name && (int?)e.Element("enabled")==1).ToArray();
         var minimum=Math.Max(0,AttributeInt(node,"metatypemin")+essence.Sum(e=>(int?)e.Element("min")??0));
         var maximum=Math.Max(minimum,AttributeInt(node,"metatypemax")+essence.Sum(e=>(int?)e.Element("max")??0));

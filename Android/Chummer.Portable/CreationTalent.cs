@@ -90,7 +90,7 @@ public sealed partial class CharacterDocument
         foreach (var node in SkillNodes)
         {
             var name = node.Element("name")!.Value; var group = (string?)node.Element("skillgroup") ?? "";
-            if (((int?)node.Element("base") ?? 0) + (names.Contains(name) ? rating : 0) + GroupRating(group) > 6)
+            if (((int?)node.Element("base") ?? 0) + (names.Contains(name) ? rating : 0) + GroupRating(group) > DraftSkillMaximum(name))
                 throw new ArgumentException("Reset some paid skill or group points before changing priority bonus skills.");
         }
         var proposedSkills = SkillNodes.ToDictionary(s => s.Element("name")!.Value, s =>

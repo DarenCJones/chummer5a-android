@@ -58,10 +58,12 @@ public sealed partial class CharacterDocument
                 var type = e.Element("improvementttype")!.Value; var name = e.Element("improvedname")!.Value;
                 var description = type switch {
                     "UnarmedDVPhysical" => "Unarmed attacks inflict Physical damage",
+                    "Attribute" when (int?)e.Element("max")>0 => $"{name} natural maximum increase: +{e.Element("max")!.Value}",
                     "Attribute" => $"{name} increase: +{e.Element("aug")!.Value}",
                     "SpecialSkills" => $"Unlocked skill: {name}",
                     "CMThresholdOffset" => $"Wound penalty offset: {e.Element("val")!.Value} damage boxes per monitor",
                     "InitiativeDice" => $"Extra initiative dice: {e.Element("val")!.Value}",
+                    "Skill" when (int?)e.Element("max")>0 => $"{name} skill maximum increase: +{e.Element("max")!.Value}",
                     "Skill" => $"{name} skill pool bonus: +{e.Element("val")!.Value}",
                     "WeaponCategoryDV" => $"{name} damage bonus: +{e.Element("val")!.Value}",
                     "WeaponSkillAccuracy" => $"{name} accuracy bonus: +{e.Element("val")!.Value}",
