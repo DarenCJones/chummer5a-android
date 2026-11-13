@@ -54,10 +54,11 @@ public sealed class AugmentationRules
         if(difference.Success)return int.Parse(difference.Groups[1].Value)-int.Parse(difference.Groups[2].Value);
         throw new InvalidDataException("This implant expression needs additional rule support.");
     }
-    public AugmentationQuote Quote(string id,int rating,string grade)
+    public AugmentationQuote Quote(string id,int rating,string grade,CharacterDocument? character=null)
     {
         if(!items.TryGetValue(id,out var item) || !grades.TryGetValue(grade,out var g))throw new ArgumentException("Choose a supported implant and grade.");
         var entry=Catalog.Single(e=>e.Id==id); var e=item.Data;
+        if(item.Kind=="Bioware" && character?.DraftBiowareDisabled==true)throw new ArgumentException("A selected quality prevents bioware installation.");
         if(rating<entry.Minimum || rating>entry.Maximum)throw new ArgumentException("Rating is outside this implant's limits.");
         if(e.Element("bannedgrades")?.Elements("grade").Any(n=>n.Value==grade)==true)throw new ArgumentException("This grade is not available for this implant.");
         var availability=SelectValue(e.Element("avail")!.Value,rating); var legality=Regex.Match(availability,@"[RF]$").Value;
@@ -65,12 +66,12 @@ public sealed class AugmentationRules
         var avail=checked((int)Evaluate(expression,rating)+(int)g.Element("avail")!);
         if(avail>12)throw new ArgumentException("This implant/grade exceeds standard creation availability 12.");
         return new AugmentationQuote(Evaluate(e.Element("cost")!.Value,rating)*(decimal)g.Element("cost")!,
-            decimal.Round(Evaluate(e.Element("ess")!.Value,rating)*(decimal)g.Element("ess")!,2,MidpointRounding.AwayFromZero),Math.Max(0,avail),legality);
+            decimal.Round(Evaluate(e.Element("ess")!.Value,rating)*(decimal)g.Element("ess")!*(item.Kind=="Cyberware"?character?.DraftCyberwareEssenceMultiplier??1:1),2,MidpointRounding.AwayFromZero),Math.Max(0,avail),legality);
     }
     public void Purchase(CharacterDocument character,string id,int rating,string grade)
     {
         _=character.DraftAttributes;
-        var item=items[id];var data=item.Data;var quote=Quote(id,rating,grade);
+        var quote=Quote(id,rating,grade,character);var item=items[id];var data=item.Data;
         if(character.LearnedPowers.Any(p=>p.Name=="Improved Reflexes") && data.Element("name")!.Value is "Wired Reflexes" or "Reaction Enhancers" or "Synaptic Booster")
             throw new InvalidOperationException("Combining Improved Reflexes with initiative implants needs additional interaction support.");
         if(character.Nuyen<quote.Cost)throw new ArgumentException("Not enough Nuyen.");
@@ -130,7 +131,16 @@ public sealed partial class CharacterDocument
     public IReadOnlyList<InstalledAugmentation> InstalledAugmentations
     {
         get {RequireDraft();return (document.Root!.Element("cyberwares")?.Elements("cyberware")??[]).Select(a=>new InstalledAugmentation(a.Element("guid")!.Value,
-            a.Element("name")!.Value,a.Element("improvementsource")!.Value,(int)a.Element("rating")!,a.Element("grade")!.Value,(decimal)a.Element("androidpurchasecost")!,(decimal)a.Element("androidessencecost")!)).ToArray();}
+            a.Element("name")!.Value,a.Element("improvementsource")!.Value,(int)a.Element("rating")!,a.Element("grade")!.Value,(decimal)a.Element("androidpurchasecost")!,CurrentImplantEssence(a))).ToArray();}
+    }
+    internal bool DraftBiowareDisabled=>document.Root!.Element("improvements")!.Elements().Any(e=>(string?)e.Element("improvementttype")=="DisableBioware" && (int?)e.Element("enabled")==1);
+    internal decimal DraftCyberwareEssenceMultiplier=>document.Root!.Element("improvements")!.Elements().Where(e=>(string?)e.Element("improvementttype")=="CyberwareTotalEssMultiplier" && (int?)e.Element("enabled")==1)
+        .Aggregate(1m,(factor,e)=>factor*(decimal)e.Element("val")!/100m);
+    private decimal CurrentImplantEssence(XElement item)
+    {
+        var grade=(string?)item.Element("grade") switch {"Standard"=>1m,"Used"=>1.25m,"Alphaware"=>0.8m,_=>throw new InvalidDataException("Unsupported implant grade.")};
+        return decimal.Round(AugmentationRules.Evaluate(item.Element("ess")!.Value,(int)item.Element("rating")!)*grade*
+            ((string?)item.Element("improvementsource")=="Cyberware"?DraftCyberwareEssenceMultiplier:1m),2,MidpointRounding.AwayFromZero);
     }
     public decimal DraftEssence=>6-InstalledAugmentations.Sum(a=>a.Essence);
     internal void AddDraftAugmentation(XElement node,XElement[] effects,decimal cost)
@@ -141,6 +151,7 @@ public sealed partial class CharacterDocument
     internal void ValidateAugmentationEffects()
     {
         if(DraftEssence<=0)throw new ArgumentException("Implants must leave Essence above zero.");
+        if(DraftBiowareDisabled && InstalledAugmentations.Any(a=>a.Kind=="Bioware"))throw new ArgumentException("Remove bioware before selecting a quality that prevents bioware installation.");
         foreach(var attribute in StandardAttributeNames)if(DraftEffect("Attribute",attribute,"aug")>4)throw new ArgumentException("Attribute augmentations cannot exceed +4.");
         foreach(var attribute in DraftAttributes)
         {
@@ -162,6 +173,7 @@ public sealed partial class CharacterDocument
     internal void RefreshDraftEssenceEffects()
     {
         RequireDraft();var improvements=document.Root!.Element("improvements")!;
+        foreach(var implant in document.Root.Element("cyberwares")?.Elements("cyberware")??[])implant.SetElementValue("androidessencecost",CurrentImplantEssence(implant));
         improvements.Elements().Where(e=>(string?)e.Element("improvementsource")=="EssenceLossChargen" && (string?)e.Element("androidbuiltin")=="True").Remove();
         var loss=(int)decimal.Ceiling(6-DraftEssence);
         foreach(var attribute in new[]{"MAG","MAGAdept","RES"})

@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.10 (development checkpoint)
+Chummer standalone Android port — preview 0.11 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -23,13 +23,14 @@ Implemented in this preview:
 - Wound penalties, armor accessory caps/encumbrance, defense and damage resistance pools.
 - Purchase/equip/unequip/remove for 35 supported fixed-price core armor and weapon entries, with creation Nuyen refunds.
 - Strength-linked melee damage, accuracy bonuses, reach and equipment state in summaries.
-- 77 supported core quality templates: one-level purchases, positive/negative Karma limits, prerequisites, conflicts, refunds and saved improvement records.
+- 78 supported core quality templates: one-level purchases, positive/negative Karma limits, prerequisites, conflicts, refunds and saved improvement records.
 - Aptitude skill maxima, Exceptional Attribute natural maxima and Lucky Edge maxima, including allocation and removal validation.
 - Loss of Confidence skill prerequisites/penalties and specialization suppression; Ambidextrous for core two-arm bodies and contextual off-hand rolls.
 - Supported quality effects on trained skill pools, limits, damage resistance, wound thresholds and native-language allowances; conditional effects are shown separately.
 - One active skill specialization per skill during creation, costing 1 skill point or 7 Karma, with refunds and +2 situational pools.
 - Character-linked skill rolls with optional specialization and applicable conditional skill bonuses; untrained defaulting follows the catalog flags and standard -1 penalty.
 - 16 core cyberware/bioware templates for priority drafts, with Standard/Used/Alphaware prices, Essence costs, creation availability and grade exclusions.
+- Sensitive System doubles cyberware Essence before rounding, reprices existing implants, blocks bioware and validates Magic/Resonance and power budgets.
 - Implant conflict checks, unique-effect non-stacking, Essence-based social limits and creation removal/refunds.
 - 101 supported fixed-price unrated gear/ammunition inventory entries, quantity/pack pricing, weapon categories and preserved ammunition bonus metadata.
 - Laser Sight/Bipod/Tripod weapon accessories, compatible unoccupied mounts, enabled effects, deployed recoil bonuses and parent/child refunds.
@@ -80,6 +81,8 @@ Validation:
 - Implant grades/Essence/conflicts/non-stacking, gear/ammo pricing/quantities and accessory mount/refund/recoil checks pass.
 - Loaded ammo split/consumption, category/capacity checks, damage/AP modifiers, no double loading/refunding and clip save/reopen checks pass.
 - Magician/adept/technomancer Essence loss, min/max improvement records, power-budget rejection and creation removal restoration checks pass.
+- Sensitive System multiplier-before-rounding, existing implant repricing, bioware rejection and Magic restoration checks pass.
+- API 34 x86_64 emulator: Sensitive System addition, blocked bioware purchase, cyberware quote/purchase, Essence 4.20 / Magic 4 / Spellcasting pool 9 and force-stop/reopen persistence verified.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:

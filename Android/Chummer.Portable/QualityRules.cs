@@ -18,7 +18,7 @@ public sealed class QualityRules
         ["pathogencontactresist"]="PathogenContactResist", ["pathogeningestionresist"]="PathogenIngestionResist", ["pathogeninhalationresist"]="PathogenInhalationResist", ["pathogeninjectionresist"]="PathogenInjectionResist",
         ["toxincontactresist"]="ToxinContactResist", ["toxiningestionresist"]="ToxinIngestionResist", ["toxininhalationresist"]="ToxinInhalationResist", ["toxininjectionresist"]="ToxinInjectionResist"
     };
-    private static bool Supported(XElement q) => ((string?)q.Element("name") is "Aptitude" or "Exceptional Attribute" or "Lucky" or "Loss of Confidence") || q.Element("firstlevelbonus") is null && q.Element("naturalweapons") is null &&
+    private static bool Supported(XElement q) => ((string?)q.Element("name") is "Aptitude" or "Exceptional Attribute" or "Lucky" or "Loss of Confidence" or "Sensitive System") || q.Element("firstlevelbonus") is null && q.Element("naturalweapons") is null &&
         (q.Element("bonus")?.Elements() ?? []).All(e => NumericEffects.ContainsKey(e.Name.LocalName) && decimal.TryParse(e.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out _) ||
             e.Name.LocalName is "selecttext" or "ambidextrous" || e.Name.LocalName is "specificskill" or "skillcategory" or "skillattribute" &&
                 e.Elements().All(c => c.Name.LocalName is "name" or "bonus" or "condition") && int.TryParse((string?)e.Element("bonus"), out _) ||
@@ -79,11 +79,11 @@ public sealed class QualityRules
             new XElement("source", "SR5"), new XElement("page", entry.Page), new XElement("androidbuiltin", "True"),
             q.Element("bonus") is { } bonus ? new XElement(bonus) : new XElement("bonus"), new XElement("notes", ""));
         updated.AddSelectedQuality(quality, Effects(q.Element("bonus"), id,extra), entry.Karma);
-        Validate(updated); character.ReplaceDraftWith(updated);
+        updated.RefreshDraftEssenceEffects();Validate(updated);updated.ValidateAugmentationEffects(); character.ReplaceDraftWith(updated);
     }
     public void Remove(CharacterDocument character, string id)
     {
-        var updated = character.Clone(); updated.RemoveSelectedQuality(id); Validate(updated); character.ReplaceDraftWith(updated);
+        var updated = character.Clone(); updated.RemoveSelectedQuality(id);updated.RefreshDraftEssenceEffects(); Validate(updated);updated.ValidateAugmentationEffects(); character.ReplaceDraftWith(updated);
     }
     private static XElement[] Effects(XElement? bonus, string id,string extra)
     {
@@ -91,6 +91,14 @@ public sealed class QualityRules
         foreach (var b in bonus?.Elements() ?? [])
         {
             if (b.Name == "selecttext") continue;
+            if(b.Name=="cyberwaretotalessmultiplier")
+            {
+                effects.Add(CreationRules.BuiltInImprovement("CyberwareTotalEssMultiplier","Quality",id,"",(decimal)b));continue;
+            }
+            if(b.Name=="disablebioware")
+            {
+                effects.Add(CreationRules.BuiltInImprovement("DisableBioware","Quality",id,"",0,"disablebioware"));continue;
+            }
             if(b.Name.LocalName is "selectskill" or "selectattributes" or "specificattribute")
             {
                 var skill=b.Name=="selectskill";var target=skill||b.Name=="selectattributes"?extra:b.Element("name")!.Value;

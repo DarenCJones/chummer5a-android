@@ -45,7 +45,7 @@ public partial class WorkbenchActivity
             try
             {
                 if(!int.TryParse(rating.Text,out var level))throw new ArgumentException("Enter a whole-number rating.");
-                var quote=Augmentations().Quote(item.Id,level,grades[Math.Max(0,grade.SelectedItemPosition)]);
+                var quote=Augmentations().Quote(item.Id,level,grades[Math.Max(0,grade.SelectedItemPosition)],RequireCharacter());
                 details.Text=$"{item.Kind}; rating {item.Minimum}–{item.Maximum} (0 means unrated)\nSR5 p. {item.Page}\n"+
                     $"Cost: {quote.Cost:N0} Nuyen; available: {RequireCharacter().Nuyen:N0}\nEssence cost: {quote.Essence:0.00}; after installation: {RequireCharacter().DraftEssence-quote.Essence:0.00}\nAvailability: {quote.Availability}{quote.Legality}";
             }

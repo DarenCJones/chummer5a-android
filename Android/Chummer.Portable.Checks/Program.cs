@@ -814,3 +814,33 @@ Reject(()=>qualityRules.Add(confidenceRunner,QualityId("Ambidextrous")));
 qualityRules.Remove(confidenceRunner,confidenceRunner.SelectedQualities.Single().Id);
 Assert(!confidenceRunner.DraftAmbidextrous && confidenceRunner.DraftContextualSkillPool(confidentSkill,null,[],true)==3,"Ambidextrous removal did not restore the off-hand penalty.");
 Console.WriteLine("PASS: Loss of Confidence prerequisite/penalty/specialization suppression, save/reopen and removal; Ambidextrous costs, core-body limits and off-hand pools.");
+var sensitiveRunner=creation.CreateDraft("Sensitive","",richPriorities,"Human");
+augmentationRules.Purchase(sensitiveRunner,ImplantId("Bone Lacing (Plastic)"),0,"Used");
+Assert(sensitiveRunner.DraftEssence==5.37m,"Used plastic bone lacing rounding setup mismatch.");
+qualityRules.Add(sensitiveRunner,QualityId("Sensitive System"));
+Assert(sensitiveRunner.Karma==37 && sensitiveRunner.DraftEssence==4.75m && sensitiveRunner.InstalledAugmentations.Single().Essence==1.25m,
+    "Sensitive System did not update existing cyberware before rounding.");
+var sensitiveQuote=augmentationRules.Quote(ImplantId("Bone Lacing (Plastic)"),0,"Used",sensitiveRunner);
+Assert(sensitiveQuote.Essence==1.25m,"Sensitive System purchase quote multiplied an already rounded Essence cost.");
+var beforeBioReject=Xml(sensitiveRunner);Reject(()=>augmentationRules.Purchase(sensitiveRunner,ImplantId("Muscle Toner"),1,"Standard"));
+Reject(()=>augmentationRules.Quote(ImplantId("Muscle Toner"),1,"Standard",sensitiveRunner));
+Assert(XNode.DeepEquals(beforeBioReject,Xml(sensitiveRunner)),"A prohibited bioware purchase changed character data.");
+using(var sensitiveBuffer=new MemoryStream())
+{
+    sensitiveRunner.SaveCompressed(sensitiveBuffer);sensitiveBuffer.Position=0;var reopenedSensitive=CharacterDocument.LoadCompressed(sensitiveBuffer);
+    Assert(XNode.DeepEquals(Xml(sensitiveRunner),Xml(reopenedSensitive)) && reopenedSensitive.DraftEssence==4.75m,"Sensitive System cost changed or doubled again after reopening.");
+}
+qualityRules.Remove(sensitiveRunner,sensitiveRunner.SelectedQualities.Single().Id);
+Assert(sensitiveRunner.DraftEssence==5.37m && sensitiveRunner.Karma==25,"Removing Sensitive System did not restore original Essence and reverse its Karma reward.");
+var bioFirst=creation.CreateDraft("Existing bioware","",richPriorities,"Human");augmentationRules.Purchase(bioFirst,ImplantId("Muscle Toner"),1,"Standard");
+var beforeSensitiveReject=Xml(bioFirst);Reject(()=>qualityRules.Add(bioFirst,QualityId("Sensitive System")));
+Assert(XNode.DeepEquals(beforeSensitiveReject,Xml(bioFirst)),"Selecting Sensitive System over existing bioware was not atomic.");
+var sensitiveMage=creation.CreateDraft("Sensitive mage","",magicianPriority,"Human");
+augmentationRules.Purchase(sensitiveMage,ImplantId("Dermal Plating"),1,"Standard");
+augmentationRules.Purchase(sensitiveMage,ImplantId("Bone Lacing (Plastic)"),0,"Standard");
+Assert(sensitiveMage.DraftAttributes.Single(a=>a.Name=="MAG").Rating==5,"Sensitive mage setup Magic mismatch.");
+qualityRules.Add(sensitiveMage,QualityId("Sensitive System"));
+Assert(sensitiveMage.DraftEssence==4 && sensitiveMage.DraftAttributes.Single(a=>a.Name=="MAG").Rating==4,"Retroactive Sensitive System Essence did not update Magic loss.");
+qualityRules.Remove(sensitiveMage,sensitiveMage.SelectedQualities.Single().Id);
+Assert(sensitiveMage.DraftAttributes.Single(a=>a.Name=="MAG").Rating==5,"Removing Sensitive System did not restore creation Magic.");
+Console.WriteLine("PASS: Sensitive System retroactive/new cyberware costs, multiplier-before-rounding, bioware conflicts, Essence/Magic restoration and save/reopen.");

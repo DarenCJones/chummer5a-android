@@ -67,6 +67,8 @@ public sealed partial class CharacterDocument
                     "Skill" => $"{name} skill pool bonus: {(e.Element("val")!.Value.StartsWith('-')?"":"+")}{e.Element("val")!.Value}",
                     "DisableSpecializationEffects" => $"{name}: specialization bonuses disabled",
                     "Ambidextrous" => "Ambidextrous: off-hand penalty ignored",
+                    "DisableBioware" => "Bioware installation disabled",
+                    "CyberwareTotalEssMultiplier" => $"Cyberware Essence multiplier: ×{(decimal)e.Element("val")!/100m}",
                     "WeaponCategoryDV" => $"{name} damage bonus: +{e.Element("val")!.Value}",
                     "WeaponSkillAccuracy" => $"{name} accuracy bonus: +{e.Element("val")!.Value}",
                     _ => $"{Regex.Replace(type, "([a-z])([A-Z])", "$1 $2")} {name} modifier: {e.Element("val")!.Value}"
