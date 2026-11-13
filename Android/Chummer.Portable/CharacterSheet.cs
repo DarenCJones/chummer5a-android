@@ -19,6 +19,16 @@ public static class CharacterSheet
         {
             var stats = character.DraftStats();
             var effective = character.EffectiveStats();
+            html.Append("<h2>Selected qualities</h2><p>").Append(Encode($"Positive: {character.PositiveQualityKarma}/25 Karma; negative: {character.NegativeQualityKarma}/25 Karma"))
+                .Append("</p><ul>");
+            foreach (var quality in character.SelectedQualities)
+                html.Append("<li>").Append(Encode($"{quality.Name} {quality.Extra}: {quality.Karma} Karma")).Append("</li>");
+            html.Append("</ul><h2>Active skill specializations</h2><ul>");
+            foreach (var spec in character.DraftSpecializations)
+                html.Append("<li>").Append(Encode($"{spec.Skill}: {spec.Name} (+2 only when applicable)")).Append("</li>");
+            html.Append("</ul><h2>Power and quality effects</h2><ul>");
+            foreach (var effect in character.DraftEffectDescriptions()) html.Append("<li>").Append(Encode(effect)).Append("</li>");
+            html.Append("</ul>");
             html.Append("<h2>Calculated permanent effects</h2><p>").Append(Encode(
                 $"Attributes: {string.Join(", ", effective.Attributes.Select(a => $"{a.Key} {a.Value}"))}\n" +
                 $"Limits: Physical {effective.PhysicalLimit}, Mental {effective.MentalLimit}, Social {effective.SocialLimit}\n" +

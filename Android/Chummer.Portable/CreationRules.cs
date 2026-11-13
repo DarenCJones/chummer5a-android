@@ -9,7 +9,7 @@ public sealed record PriorityChoice(string Method, string Heritage, string Attri
     string Talent = "E", string Path = "Mundane", string Aspect = "Sorcery");
 public sealed record CreationBudget(int Attributes, int Special, int Skills, int SkillGroups, decimal Nuyen);
 public sealed record DraftAttribute(string Name, int Minimum, int Maximum, int Rating);
-public sealed record DraftSkill(string Id, string Name, string Attribute, int Rating, string Group = "");
+public sealed record DraftSkill(string Id, string Name, string Attribute, int Rating, string Group = "", bool Defaultable = false);
 public sealed record DraftSkillGroup(string Name, int Rating);
 public sealed record DraftKnowledge(string Id, string Name, string Type, int Rating, bool Native);
 public sealed record UnaugmentedStats(int PhysicalLimit, int MentalLimit, int SocialLimit, int Initiative,
@@ -164,7 +164,7 @@ public sealed partial class CreationRules
         .Where(e => AllowsSkill(e, character.Field("prioritytalent"), character.Field("androidaspect")) && character.HasDraftSkill(e.Element("id")!.Value))
         .Select(e =>
         new DraftSkill(e.Element("id")!.Value, e.Element("name")!.Value, e.Element("attribute")!.Value,
-            character.DraftSkillRating(e.Element("id")!.Value), (string?)e.Element("skillgroup") ?? "")).OrderBy(e => e.Name).ToArray();
+            character.DraftSkillRating(e.Element("id")!.Value), (string?)e.Element("skillgroup") ?? "", (string?)e.Element("default") == "True")).OrderBy(e => e.Name).ToArray();
 }
 
 public sealed partial class CharacterDocument
@@ -253,8 +253,8 @@ public sealed partial class CharacterDocument
         ValidatePowerConstraints(skillRatings: memberRatings);
         group.SetElementValue("base", rating - free);
     }
-    public int SkillPointsRemaining => (int?)document.Root!.Element("newskills")?.Element("skillptsmax") -
-        document.Root!.Element("newskills")?.Element("skills")?.Elements("skill").Sum(e => (int?)e.Element("base") ?? 0) ?? 0;
+    public int SkillPointsRemaining => ((int?)document.Root!.Element("newskills")?.Element("skillptsmax") ?? 0) -
+        (document.Root!.Element("newskills")?.Element("skills")?.Elements("skill").Sum(e => (int?)e.Element("base") ?? 0) ?? 0) - SpecializationPointCost;
     public void SetDraftSkill(string id, int rating)
     {
         RequireDraft();
@@ -294,7 +294,7 @@ public sealed partial class CharacterDocument
         if (id is not null && !existing.Any(k => k.Id == id)) throw new ArgumentException("Unknown knowledge skill.");
         if (existing.Any(k => k.Id != id && k.Type == type && k.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase)))
             throw new ArgumentException("That skill or language already exists.");
-        if (native && existing.Any(k => k.Id != id && k.Native)) throw new ArgumentException("The standard rules allow one native language.");
+        if (native && existing.Count(k => k.Id != id && k.Native) >= 1 + DraftEffect("NativeLanguageLimit")) throw new ArgumentException("The character's native-language limit has been reached.");
         if (existing.Where(k => k.Id != id).Sum(k => k.Native ? 0 : k.Rating) + (native ? 0 : rating) > DraftStats().KnowledgePoints)
             throw new ArgumentException("Not enough knowledge points.");
         var updated = new XElement("skill", new XElement("guid", id ?? Guid.NewGuid().ToString("D")), new XElement("suid", Guid.Empty.ToString("D")),

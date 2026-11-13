@@ -42,6 +42,7 @@ public sealed class PowerRules
         if (character.Field("adept") != "True") throw new InvalidOperationException("This talent has no adept powers.");
         if (!powers.TryGetValue(sourceId, out var p)) throw new ArgumentException("Unknown core power.");
         var entry = Catalog.Single(e => e.Id == sourceId); extra = extra.Trim();
+        if (entry.Name == "Pain Resistance" && character.HasQuality("High Pain Tolerance")) throw new ArgumentException("Pain Resistance conflicts with High Pain Tolerance.");
         var choices = Choices(sourceId, character, creation);
         if (choices.Count > 0) extra = choices.FirstOrDefault(c => c.Equals(extra, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException("Choose one of the listed power options.");
         else if (FreeTextChoice(sourceId)) { if (extra.Length == 0) throw new ArgumentException("Enter the sense to improve."); }
@@ -137,6 +138,8 @@ public sealed partial class CharacterDocument
     internal void ValidatePowerConstraints(IReadOnlyDictionary<string, int>? attributes = null, IReadOnlyDictionary<string, int>? skillRatings = null)
     {
         var values = attributes ?? DraftAttributes.ToDictionary(a => a.Name, a => a.Rating);
+        if (skillRatings is not null && DraftSpecializations.Any(s => skillRatings.GetValueOrDefault(s.Skill) < 1))
+            throw new ArgumentException("Remove the specialization before reducing its skill to zero.");
         if (LearnedPowers.Count == 0 && Number("magsplitadept") == 0) return;
         var magic = values.GetValueOrDefault("MAG");
         if (Number("magsplitadept") > magic || LearnedPowers.Sum(p => p.Cost) > (Field("prioritytalent") == "Mystic Adept" ? Number("magsplitadept") : magic)) throw new ArgumentException("Remove powers or reduce purchased power points before lowering Magic.");

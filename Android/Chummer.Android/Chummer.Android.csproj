@@ -7,8 +7,8 @@
     <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
     <ApplicationId>org.chummer.offline</ApplicationId>
     <ApplicationTitle>Chummer Offline Preview</ApplicationTitle>
-    <ApplicationVersion>5</ApplicationVersion>
-    <ApplicationDisplayVersion>0.5</ApplicationDisplayVersion>
+    <ApplicationVersion>6</ApplicationVersion>
+    <ApplicationDisplayVersion>0.6</ApplicationDisplayVersion>
     <!-- Keep preview runtime callbacks intact; the trimmed Release build aborts
          during Mono startup on the Android API 34 emulator. Revisit with toolchain QA. -->
     <PublishTrimmed>false</PublishTrimmed>

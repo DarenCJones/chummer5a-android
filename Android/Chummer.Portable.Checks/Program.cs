@@ -438,3 +438,87 @@ using (var equipmentBuffer = new MemoryStream())
         reopenedEquipment.EffectiveStats().Armor == 1, "Equipment/power state or calculated effects changed after reopening.");
 }
 Console.WriteLine($"PASS: {equipmentRules.Catalog.Count} supported core armor/weapons, Nuyen budgets/refunds, equipped effects, bonus armor caps/penalties and Strength-linked weapon statistics.");
+var specialist = adept.Clone(); specialist.SetDraftSkill(pistol.Id, 3);
+var pointsBeforeSpec = specialist.SkillPointsRemaining; var karmaBeforeSpec = specialist.Karma;
+specialist.AddDraftSpecialization(pistol.Id, "Semi-Automatics", false);
+var specialistSkill = creation.Skills(specialist).Single(s => s.Id == pistol.Id);
+Assert(specialist.SkillPointsRemaining == pointsBeforeSpec - 1 && specialist.Karma == karmaBeforeSpec &&
+    specialist.DraftSpecializedPool(specialistSkill, "Semi-Automatics") == specialist.DraftSkillPool(specialistSkill) + 2, "Specialization point cost or pool bonus mismatch.");
+var specBeforeReject = Xml(specialist);
+Reject(() => specialist.AddDraftSpecialization(pistol.Id, "Revolvers", true));
+Reject(() => specialist.SetDraftSkill(pistol.Id, 0));
+Assert(XNode.DeepEquals(specBeforeReject, Xml(specialist)), "Rejected specialization/skill change modified data.");
+specialist.RemoveDraftSpecialization(pistol.Id);
+Assert(specialist.SkillPointsRemaining == pointsBeforeSpec && specialist.Karma == karmaBeforeSpec, "Point-paid specialization refund mismatch.");
+specialist.AddDraftSpecialization(pistol.Id, "Revolvers", true);
+Assert(specialist.Karma == karmaBeforeSpec - 7 && specialist.SkillPointsRemaining == pointsBeforeSpec &&
+    Xml(specialist).Descendants("spec").Any(s => (string?)s.Element("name") == "Revolvers" && (string?)s.Element("free") == "False"), "Karma specialization cost or save schema mismatch.");
+specialist.RemoveDraftSpecialization(pistol.Id);
+Assert(specialist.Karma == karmaBeforeSpec, "Karma-paid specialization did not refund its cost.");
+using var qualityDataForOptions = File.OpenRead(Path.Combine(root,"Chummer","data","qualities.xml"));
+var qualityRules = new QualityRules(qualityDataForOptions);
+string QualityId(string name) => qualityRules.Catalog.Single(q => q.Name == name).Id;
+var qualityRunner = adept.Clone(); var sneak = creation.Skills(qualityRunner).Single(s => s.Name == "Sneaking"); qualityRunner.SetDraftSkill(sneak.Id, 2);
+var sneakPool = qualityRunner.DraftSkillPool(creation.Skills(qualityRunner).Single(s => s.Id == sneak.Id));
+qualityRules.Add(qualityRunner, QualityId("Catlike"));
+Assert(qualityRunner.Karma == 18 && qualityRunner.PositiveQualityKarma == 7 && qualityRunner.DraftSkillPool(creation.Skills(qualityRunner).Single(s => s.Id == sneak.Id)) == sneakPool+2,
+    "Catlike cost/limit or skill-pool effect mismatch.");
+qualityRules.Add(qualityRunner, QualityId("Bad Rep"));
+Assert(qualityRunner.Karma == 25 && qualityRunner.NegativeQualityKarma == 7, "Negative quality reward mismatch.");
+qualityRules.Remove(qualityRunner, qualityRunner.SelectedQualities.Single(q => q.Name == "Catlike").Id);
+Assert(qualityRunner.Karma == 32 && qualityRunner.DraftSkillPool(creation.Skills(qualityRunner).Single(s => s.Id == sneak.Id)) == sneakPool,
+    "Quality removal did not reverse cost/effects.");
+qualityRules.Remove(qualityRunner, qualityRunner.SelectedQualities.Single().Id);
+Assert(qualityRunner.Karma == 25 && qualityRunner.SelectedQualities.Count == 0, "Negative quality removal did not reverse reward.");
+var bilingualRunner = adept.Clone(); qualityRules.Add(bilingualRunner, QualityId("Bilingual"));
+bilingualRunner.SetDraftKnowledge(null,"English","Language",0,true); bilingualRunner.SetDraftKnowledge(null,"Spanish","Language",0,true);
+Reject(() => bilingualRunner.SetDraftKnowledge(null,"French","Language",0,true));
+var bilingualBeforeReject = Xml(bilingualRunner);
+Reject(() => qualityRules.Remove(bilingualRunner, bilingualRunner.SelectedQualities.Single().Id));
+Assert(XNode.DeepEquals(bilingualBeforeReject,Xml(bilingualRunner)), "Removing Bilingual partially removed a required native-language grant.");
+bilingualRunner.RemoveDraftKnowledge(bilingualRunner.DraftKnowledgeSkills.Single(s => s.Name == "Spanish").Id);
+qualityRules.Remove(bilingualRunner,bilingualRunner.SelectedQualities.Single().Id);
+var painRunner = adept.Clone(); qualityRules.Add(painRunner,QualityId("High Pain Tolerance")); painRunner.SetDamage(3,3);
+Assert(painRunner.EffectiveStats().WoundPenalty == 0, "High Pain Tolerance threshold offsets were not applied.");
+Reject(() => powerRules.Learn(painRunner,creation,PowerId("Pain Resistance"),1));
+var resistedRunner = adept.Clone(); powerRules.Learn(resistedRunner,creation,PowerId("Pain Resistance"),1);
+Reject(() => qualityRules.Add(resistedRunner,QualityId("High Pain Tolerance")));
+var blandRunner = adept.Clone(); qualityRules.Add(blandRunner,QualityId("Blandness"));
+Reject(() => qualityRules.Add(blandRunner,QualityId("Distinctive Style")));
+var distinctiveRunner = adept.Clone(); qualityRules.Add(distinctiveRunner,QualityId("Distinctive Style"));
+Reject(() => qualityRules.Add(distinctiveRunner,QualityId("Blandness")));
+Reject(() => qualityRules.Add(adept.Clone(),QualityId("Human-Looking")));
+var qualityLimitRunner = adept.Clone(); qualityRules.Add(qualityLimitRunner,QualityId("Bad Rep"));
+qualityRules.Add(qualityLimitRunner,QualityId("Allergy (Common, Moderate)"),"Peanuts");
+var limitBeforeReject = Xml(qualityLimitRunner);
+Reject(() => qualityRules.Add(qualityLimitRunner,QualityId("Low Pain Tolerance")));
+Assert(XNode.DeepEquals(limitBeforeReject,Xml(qualityLimitRunner)), "Negative quality limit failure changed Karma or effects.");
+var conditionRunner = adept.Clone(); var logicSkill = creation.Skills(conditionRunner).First(s => s.Attribute == "LOG"); conditionRunner.SetDraftSkill(logicSkill.Id,1);
+var beforeCondition = conditionRunner.DraftSkillPool(creation.Skills(conditionRunner).Single(s => s.Id == logicSkill.Id));
+qualityRules.Add(conditionRunner,QualityId("Analytical Mind"));
+Assert(conditionRunner.DraftSkillPool(creation.Skills(conditionRunner).Single(s => s.Id == logicSkill.Id)) == beforeCondition &&
+    conditionRunner.DraftEffectDescriptions().Any(s => s.Contains("pattern recognition")), "Conditional quality was applied unconditionally or lost its condition.");
+var logicTestSkill = creation.Skills(conditionRunner).Single(s => s.Id == logicSkill.Id);
+var logicConditions = conditionRunner.DraftConditionalSkillBonuses(logicTestSkill);
+Assert(logicConditions.Count == 1 && conditionRunner.DraftContextualSkillPool(logicTestSkill,null,logicConditions.Select(c => c.Id)) == beforeCondition+2,
+    "Selected conditional quality bonus was not applied to its test.");
+Reject(() => conditionRunner.DraftContextualSkillPool(logicTestSkill,null,["not-a-valid-condition"]));
+var defaultRunner = adept.Clone(); defaultRunner.SetDraftAttributes(new Dictionary<string,int> { ["AGI"] = 4 });
+var defaultPistol = creation.Skills(defaultRunner).Single(s => s.Name == "Pistols");
+Assert(defaultPistol.Defaultable && defaultRunner.DraftSkillPool(defaultPistol) == 3, "Defaultable skill did not use attribute minus one.");
+var noDefaultSkill = creation.Skills(defaultRunner).First(s => !s.Defaultable && s.Rating == 0);
+Reject(() => defaultRunner.DraftSkillPool(noDefaultSkill));
+defaultRunner.SetDamage(3,0);
+Assert(defaultRunner.DraftSkillPool(defaultPistol) == 2, "Defaulting ignored wound penalties.");
+var toughnessRunner = adept.Clone(); var soakBeforeQuality = toughnessRunner.EffectiveStats().SoakPool; qualityRules.Add(toughnessRunner,QualityId("Toughness"));
+Assert(toughnessRunner.EffectiveStats().SoakPool == soakBeforeQuality+1, "Toughness damage resistance missing.");
+specialist.AddDraftSpecialization(pistol.Id,"Semi-Automatics",false); qualityRules.Add(specialist,QualityId("Catlike"));
+using (var optionsBuffer = new MemoryStream())
+{
+    specialist.SaveCompressed(optionsBuffer); optionsBuffer.Position=0; var reopenedOptions = CharacterDocument.LoadCompressed(optionsBuffer);
+    Assert(XNode.DeepEquals(Xml(specialist),Xml(reopenedOptions)) && reopenedOptions.SelectedQualities.Count == 1 && reopenedOptions.DraftSpecializations.Count == 1,
+        "Quality/specialization data changed after compressed save/reopen.");
+}
+Assert(CharacterSheet.SummaryHtml(specialist).Contains("Semi-Automatics (+2 only when applicable)") && CharacterSheet.SummaryHtml(specialist).Contains("Catlike"),
+    "Character summary omitted selected qualities/specializations.");
+Console.WriteLine($"PASS: active skill specializations, point/Karma costs and refunds; {qualityRules.Catalog.Count} supported quality templates, requirements/conflicts, limits, conditions, language grants and effect removal.");

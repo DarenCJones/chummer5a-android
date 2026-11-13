@@ -21,21 +21,25 @@ public sealed partial class CharacterDocument
         a["AGI"] = Math.Max(1, a["AGI"] - armorPenalty); a["REA"] = Math.Max(1, a["REA"] - armorPenalty);
         var armor = baseArmor + Math.Min(bonusArmor, a["STR"]) + (int)DraftEffect("Armor");
         var resistance = (int)DraftEffect("CMThresholdOffset");
-        var wounds = Math.Max(0, (Math.Min(PhysicalDamage, 8 + (a["BOD"] + 1)/2) - resistance) / 3) +
-            Math.Max(0, (Math.Min(StunDamage, 8 + (a["WIL"] + 1)/2) - resistance) / 3);
+        var woundThreshold = Math.Max(1, 3 + (int)DraftEffect("CMThreshold"));
+        var wounds = Math.Max(0, (Math.Min(PhysicalDamage, 8 + (a["BOD"] + 1)/2) - resistance) / woundThreshold) +
+            Math.Max(0, (Math.Min(StunDamage, 8 + (a["WIL"] + 1)/2) - resistance) / woundThreshold);
         int Third(int n) => (n + 2) / 3;
         return new EffectiveStatistics(a, Third(2*a["STR"] + a["BOD"] + a["REA"]) + (int)DraftEffect("PhysicalLimit", "Physical"),
             Third(2*a["LOG"] + a["INT"] + a["WIL"]) + (int)DraftEffect("MentalLimit", "Mental"),
             Third(2*a["CHA"] + a["WIL"] + 6) + (int)DraftEffect("SocialLimit", "Social"),
             Math.Max(0, a["REA"] + a["INT"] - wounds), 1 + (int)DraftEffect("InitiativeDice"),
             8 + (a["BOD"] + 1)/2, 8 + (a["WIL"] + 1)/2, armor, armorPenalty,
-            Math.Max(0, a["REA"] + a["INT"] + (int)DraftEffect("Dodge") - wounds), a["BOD"] + armor, wounds);
+            Math.Max(0, a["REA"] + a["INT"] + (int)DraftEffect("Dodge") - wounds), a["BOD"] + armor + (int)DraftEffect("DamageResistance"), wounds);
     }
     public int DraftSkillPool(DraftSkill skill)
+        => Math.Max(0, DraftSkillPoolBeforeFloor(skill));
+    private int DraftSkillPoolBeforeFloor(DraftSkill skill)
     {
         var stats = EffectiveStats();
-        if (skill.Rating == 0) throw new InvalidOperationException("Untrained skill defaulting is not included in this pool.");
-        return Math.Max(0, skill.Rating + stats.Attributes[skill.Attribute] + (int)DraftEffect("Skill", skill.Name) - stats.WoundPenalty);
+        if (skill.Rating == 0 && !skill.Defaultable) throw new InvalidOperationException("This skill cannot be used without training.");
+        return skill.Rating + stats.Attributes[skill.Attribute] + (int)DraftEffect("Skill", skill.Name) +
+            (int)DraftEffect("SkillAttribute", skill.Attribute) + (int)DraftEffect("SkillCategory", SkillNodes.Single(s => (string?)s.Element("suid") == skill.Id).Element("skillcategory")!.Value) - stats.WoundPenalty - (skill.Rating == 0 ? 1 : 0);
     }
     public WeaponStats DraftUnarmedAttack()
     {
@@ -47,10 +51,12 @@ public sealed partial class CharacterDocument
     public IReadOnlyList<string> DraftEffectDescriptions()
     {
         RequireDraft();
-        return document.Root!.Element("improvements")!.Elements().Where(e => (string?)e.Element("improvementsource") == "Power" &&
+        var selectedSources = SelectedQualities.Select(q => q.Id).ToHashSet();
+        return document.Root!.Element("improvements")!.Elements().Where(e => ((string?)e.Element("improvementsource") == "Power" ||
+            (string?)e.Element("improvementsource") == "Quality" && selectedSources.Contains((string?)e.Element("sourcename") ?? "")) &&
             (string?)e.Element("improvementttype") != "DisableQuality").Select(e => {
                 var type = e.Element("improvementttype")!.Value; var name = e.Element("improvedname")!.Value;
-                return type switch {
+                var description = type switch {
                     "UnarmedDVPhysical" => "Unarmed attacks inflict Physical damage",
                     "Attribute" => $"{name} increase: +{e.Element("aug")!.Value}",
                     "SpecialSkills" => $"Unlocked skill: {name}",
@@ -59,8 +65,10 @@ public sealed partial class CharacterDocument
                     "Skill" => $"{name} skill pool bonus: +{e.Element("val")!.Value}",
                     "WeaponCategoryDV" => $"{name} damage bonus: +{e.Element("val")!.Value}",
                     "WeaponSkillAccuracy" => $"{name} accuracy bonus: +{e.Element("val")!.Value}",
-                    _ => $"{Regex.Replace(type, "([a-z])([A-Z])", "$1 $2")} bonus: +{e.Element("val")!.Value}"
+                    _ => $"{Regex.Replace(type, "([a-z])([A-Z])", "$1 $2")} {name} modifier: {e.Element("val")!.Value}"
                 };
+                var condition = (string?)e.Element("condition") ?? "";
+                return description + (condition.Length > 0 ? " (only when " + condition.Replace("LimitCondition_", "") + ")" : "");
             }).ToArray();
     }
 }

@@ -54,6 +54,8 @@ public partial class WorkbenchActivity : Activity
         MenuButton(layout, "Contacts", EditContacts, "Characters");
         MenuButton(layout, "Allocate draft attributes", EditAttributes, "Create");
         MenuButton(layout, "Allocate draft skills", EditSkills, "Create");
+        MenuButton(layout, "Qualities", EditQualities, "Create");
+        MenuButton(layout, "Skill specializations", EditSpecializations, "Create");
         MenuButton(layout, "Allocate draft skill groups", EditGroups, "Create");
         MenuButton(layout, "Assign priority bonus skills", EditTalentSkills, "Create");
         MenuButton(layout, "Magic and resonance", EditMagic, "Create");
@@ -71,6 +73,7 @@ public partial class WorkbenchActivity : Activity
         MenuButton(layout, "Browse rules catalogs", Catalogs, "Library");
         MenuButton(layout, "About, source and license", About, "Library");
         MenuButton(layout, "Roll dice", Dice, "Play");
+        MenuButton(layout, "Roll character skill", RollCharacterSkill, "Play");
         MenuButton(layout, "Initiative tracker", Initiative, "Play");
         status = new TextView(this); layout.AddView(status);
         try
@@ -275,7 +278,7 @@ public partial class WorkbenchActivity : Activity
             .SetItems(skills.Select(s => $"{s.Name}: {s.Rating}").ToArray(), (_, args) => Guard(() =>
             {
                 var skill = skills[args.Which]; var form = Form();
-                form.Layout.AddView(new TextView(this) { Text = $"Linked attribute: {skill.Attribute}. Group: {skill.Group}. Reset the group to zero before assigning individual points. Specializations are pending." });
+                form.Layout.AddView(new TextView(this) { Text = $"Linked attribute: {skill.Attribute}. Group: {skill.Group}. Reset the group to zero before assigning individual points. Use Skill specializations to add a specialization after training this skill." });
                 var value = Input(form.Layout, "Skill rating (0–6)", skill.Rating.ToString()); value.InputType = InputTypes.ClassNumber;
                 EditDialog(skill.Name, form.Scroll, () =>
                 {
@@ -456,6 +459,8 @@ public partial class WorkbenchActivity : Activity
             {
             var stats = c.DraftStats();
             lines.Add(EffectsSummary(c));
+            lines.Add($"\nSelected qualities: {c.PositiveQualityKarma}/25 positive; {c.NegativeQualityKarma}/25 negative Karma\n" + string.Join("\n", c.SelectedQualities.Select(q => $"{q.Name} {q.Extra} ({q.Karma} Karma)")));
+            lines.Add("\nSpecializations (+2 only when applicable)\n" + string.Join("\n", c.DraftSpecializations.Select(s => $"{s.Skill}: {s.Name}; applicable pool {c.DraftSpecializedPool(Creation().Skills(c).Single(k => k.Id == s.SkillId), s.Name)}")));
             lines.Add($"\nDraft — creation is not finalized\nAttributes: {string.Join(", ", c.DraftAttributes.Select(a => $"{a.Name} {a.Rating}"))}\n" +
                 $"Points remaining: {c.AttributePointsRemaining} attributes; {c.SpecialPointsRemaining} special; {c.SkillPointsRemaining} skills; {c.GroupPointsRemaining} groups; {c.KnowledgePointsRemaining} knowledge\n" +
                 $"Unaugmented limits: physical {stats.PhysicalLimit}, mental {stats.MentalLimit}, social {stats.SocialLimit}\n" +
@@ -529,7 +534,7 @@ public partial class WorkbenchActivity : Activity
     private void About()
     {
         var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.5\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Full magic/Matrix play, attachments, ammunition and augmentations are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
+        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.6\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Full magic/Matrix play, attachments, ammunition and augmentations are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
         using var license = Assets!.Open("LICENSE.txt"); using var reader = new StreamReader(license);
         form.Layout.AddView(new TextView(this) { Text = reader.ReadToEnd() });
         new AlertDialog.Builder(this).SetTitle("About this preview")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();

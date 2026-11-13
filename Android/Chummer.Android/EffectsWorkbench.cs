@@ -125,7 +125,7 @@ public partial class WorkbenchActivity
             $"Condition monitors: {s.PhysicalBoxes} physical / {s.StunBoxes} stun\n" +
             (c.Field("adept") == "True" ? $"Power points: {c.PowerPointsRemaining:0.##}/{c.PowerPointsTotal:0.##} remaining\n" + string.Join("\n", c.LearnedPowers.Select(p => $"{p.Name} {p.Extra} {p.Rating} — {p.Cost:0.##} PP")) : "") +
             "\n" + string.Join("\n", c.DraftWeapons().Prepend(c.DraftUnarmedAttack()).Select(w => $"{w.Name}: {w.Damage}; accuracy {w.Accuracy}; AP {w.AP}; reach {w.Reach}")) +
-            "\nPower effects\n" + string.Join("\n", c.DraftEffectDescriptions()) +
+            "\nPower and quality effects\n" + string.Join("\n", c.DraftEffectDescriptions()) +
             "\nActive powers, ammunition, situational modifiers and carrying-weight penalties require manual handling.";
     }
 }

@@ -1,0 +1,48 @@
+Desktop parity tracking
+======================
+Complete desktop replication: NO
+Reference upstream commit: 3325ee0589be3d35743f6ed720889018437ad555
+
+An implemented subset is not evidence of whole-feature parity. Each remaining
+area needs source comparison, semantic regression checks and Android workflow QA.
+
+PARTIAL — Character files: XML preservation and upstream LZMA import/export tested
+against 34 fixtures. Remaining desktop import/export utilities and custom data pending.
+PARTIAL — Creation: core metatypes and Priority/Sum-to-Ten drafts; other methods,
+metavariants, remaining metatypes, complete validation and finalization pending.
+PARTIAL — Attributes and skills: core allocations, groups, knowledge, languages,
+priority grants, active specializations and standard defaulting; Karma allocation,
+knowledge specialties, exceptional limits and house rules pending.
+PARTIAL — Qualities: supported core templates, selected levels, Karma limits,
+prerequisites/conflicts and supported numeric effects; remaining effect types,
+mentor spirits, full contextual rule automation and non-core catalogs pending.
+PARTIAL — Magic/resonance: core talents, traditions, spells, preparations, forms,
+adept powers and PP purchases; summoning/binding, sprites, initiation, sustained
+effects, Way discounts and detailed spell/Matrix play pending.
+PARTIAL — Equipment: supported fixed-price core armor/weapons and permanent
+effects; complete catalogs, ammo, modifications, accessories, Matrix electronics,
+cyberware/bioware, vehicles/drones and encumbrance by carrying weight pending.
+PARTIAL — Derived statistics: supported app-created drafts only. Complete desktop
+improvement expressions, effect interactions and imported-character recalculation pending.
+PARTIAL — Career: manual ledger and damage records; finalization, advancement,
+buyoffs, expenses/undo integration and complete career editing pending.
+PARTIAL — Contacts: standard draft contacts; imported contacts and expanded rules pending.
+PENDING — Lifestyles and their options, advanced qualities, cost/roommate rules.
+PARTIAL — Play tools: core dice and initiative pass tracking; rerolls, extended
+tests, complete initiative rules and character-linked combat workflows pending.
+PARTIAL — Sheets: portable summary and Android PDF printing; desktop XSL templates pending.
+PARTIAL — Localization/catalogs: offline XML browsing; translations, sourcebooks,
+settings, custom-data merges and house-rule profiles pending.
+PENDING — Hub and portable replacements for desktop plugins/integrations.
+PARTIAL — Android: native offline preview with persistence and emulator checks;
+lifecycle/recovery coverage, accessibility, production signing, toolchain upgrade,
+physical-device matrix and release readiness pending.
+
+Completion gate
+---------------
+Inventory every desktop workflow and rule implementation against this reference.
+Port or explicitly resolve each entry; do not mark unsupported behavior complete.
+Compare identical character builds, purchases and advancements against desktop
+results, including save/reload and cross-platform character-file round trips.
+Exercise Android workflows offline, with lifecycle interruptions and recovery.
+Verify all supported devices/toolchains and release checks before declaring parity.
