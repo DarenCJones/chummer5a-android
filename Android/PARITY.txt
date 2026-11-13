@@ -11,8 +11,9 @@ against 34 fixtures. Remaining desktop import/export utilities and custom data p
 PARTIAL — Creation: core metatypes and Priority/Sum-to-Ten drafts; other methods,
 metavariants, remaining metatypes, complete validation and finalization pending.
 PARTIAL — Attributes and skills: core allocations, groups, knowledge, languages,
-priority grants, active specializations and standard defaulting; Karma allocation,
-knowledge specialties, remaining limit/effect combinations and house rules pending.
+priority grants, active/knowledge specializations, mixed point/Karma attribute,
+skill/group/knowledge funding and standard defaulting; additional specialization
+variants, group/individual mixing, remaining effects and house rules pending.
 PARTIAL — Qualities: supported core templates, selected levels, Karma limits,
 prerequisites/conflicts and supported numeric effects; remaining effect types,
 mentor spirits, full contextual rule automation and non-core catalogs pending.

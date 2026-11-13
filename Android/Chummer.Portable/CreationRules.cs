@@ -8,7 +8,7 @@ namespace Chummer.Portable;
 public sealed record PriorityChoice(string Method, string Heritage, string Attributes, string Skills, string Resources,
     string Talent = "E", string Path = "Mundane", string Aspect = "Sorcery");
 public sealed record CreationBudget(int Attributes, int Special, int Skills, int SkillGroups, decimal Nuyen);
-public sealed record DraftAttribute(string Name, int Minimum, int Maximum, int Rating);
+public sealed record DraftAttribute(string Name, int Minimum, int Maximum, int Rating, int KarmaRating = 0);
 public sealed record DraftSkill(string Id, string Name, string Attribute, int Rating, string Group = "", bool Defaultable = false, int KarmaRating = 0);
 public sealed record DraftSkillGroup(string Name, int Rating, int KarmaRating = 0);
 public sealed record DraftKnowledge(string Id, string Name, string Type, int Rating, bool Native,
@@ -195,17 +195,37 @@ public sealed partial class CharacterDocument
                 .Select(ReadDraftAttribute).ToArray();
         }
     }
-    public int AttributePointsRemaining => (int)Number("totalattributes") - DraftAttributes.Where(e => StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum);
-    public int SpecialPointsRemaining => (int)Number("totalspecial") - DraftAttributes.Where(e => !StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum);
-    public void SetDraftAttributes(IReadOnlyDictionary<string, int> ratings)
+    public int AttributePointsRemaining => (int)Number("totalattributes") - DraftAttributes.Where(e => StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum - e.KarmaRating);
+    public int SpecialPointsRemaining => (int)Number("totalspecial") - DraftAttributes.Where(e => !StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum - e.KarmaRating);
+    public static int AttributeKarmaCost(int rating, int karmaLevels)
+    {
+        if (rating < 0 || rating > 100 || karmaLevels < 0 || karmaLevels > rating) throw new ArgumentException("Attribute ratings must be 0–100 and Karma levels cannot exceed the rating.");
+        var lower = rating - karmaLevels;
+        return 5 * (rating * (rating + 1) - lower * (lower + 1)) / 2;
+    }
+    private int DraftAttributeKarmaCost => DraftAttributes.Sum(a => AttributeKarmaCost(a.Rating, a.KarmaRating));
+    private void RepriceDraftAttributeKarma()
+    {
+        var cost = DraftAttributeKarmaCost;
+        var balance = Karma + Number("androidattributekarmacost") - cost;
+        if (balance < 0) throw new ArgumentException("Not enough Karma to reprice attribute levels after this change. Reduce Karma-funded attributes first.");
+        SetField("karma", balance.ToString(CultureInfo.InvariantCulture));
+        SetField("androidattributekarmacost", cost.ToString(CultureInfo.InvariantCulture));
+    }
+    public void SetDraftAttributes(IReadOnlyDictionary<string, int> ratings, IReadOnlyDictionary<string, int>? karmaLevels = null)
     {
         var available = DraftAttributes.ToDictionary(e => e.Name);
-        if (ratings.Keys.Any(k => !available.ContainsKey(k))) throw new ArgumentException("Unknown attribute.");
-        var proposed = available.Values.Select(e => e with { Rating = ratings.TryGetValue(e.Name, out var r) ? r : e.Rating }).ToArray();
+        if (ratings.Keys.Concat(karmaLevels?.Keys ?? []).Any(k => !available.ContainsKey(k))) throw new ArgumentException("Unknown attribute.");
+        var proposed = available.Values.Select(e => e with { Rating = ratings.TryGetValue(e.Name, out var r) ? r : e.Rating,
+            KarmaRating = karmaLevels is not null && karmaLevels.TryGetValue(e.Name, out var levels) ? levels : e.KarmaRating }).ToArray();
         if (proposed.Any(e => e.Rating < e.Minimum || e.Rating > e.Maximum)) throw new ArgumentException("An attribute is outside its metatype limits.");
+        if (proposed.Any(e => e.KarmaRating < 0 || e.KarmaRating > e.Rating - e.Minimum)) throw new ArgumentException("Karma levels cannot include the attribute's minimum rating.");
         if(InstalledAugmentations.Count>0 && proposed.Any(a=>a.Name is "MAG" or "RES" && a.Rating<1))throw new InvalidOperationException("Burning Magic or Resonance to zero is not supported yet.");
-        if (proposed.Where(e => StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum) > Number("totalattributes")) throw new ArgumentException("Not enough attribute points.");
-        if (proposed.Where(e => !StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum) > Number("totalspecial")) throw new ArgumentException("Not enough special attribute points.");
+        if (proposed.Where(e => StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum - e.KarmaRating) > Number("totalattributes")) throw new ArgumentException("Not enough attribute points.");
+        if (proposed.Where(e => !StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum - e.KarmaRating) > Number("totalspecial")) throw new ArgumentException("Not enough special attribute points.");
+        var newCost = proposed.Sum(a => AttributeKarmaCost(a.Rating, a.KarmaRating));
+        var balance = Karma + DraftAttributeKarmaCost - newCost;
+        if (balance < 0) throw new ArgumentException("Not enough Karma for these attribute levels.");
         if (proposed.Count(e => StandardAttributeNames.Contains(e.Name) && e.Rating == e.Maximum) > 1) throw new ArgumentException("Only one physical or mental attribute may start at its natural maximum under the standard rules.");
         var knowledgeBudget = 2 * (proposed.Single(e => e.Name == "INT").Rating + proposed.Single(e => e.Name == "LOG").Rating);
         if (KnowledgePointCost > knowledgeBudget)
@@ -216,8 +236,10 @@ public sealed partial class CharacterDocument
         foreach (var a in proposed)
         {
             var node = AttributeNodes.Single(e => (string?)e.Element("name") == a.Name);
-            node.SetElementValue("base", a.Rating - a.Minimum); node.SetElementValue("totalvalue", a.Rating);
+            node.SetElementValue("base", a.Rating - a.Minimum - a.KarmaRating); node.SetElementValue("karma", a.KarmaRating); node.SetElementValue("totalvalue", a.Rating);
         }
+        SetField("karma", balance.ToString(CultureInfo.InvariantCulture));
+        SetField("androidattributekarmacost", newCost.ToString(CultureInfo.InvariantCulture));
         SetField("special", SpecialPointsRemaining.ToString(CultureInfo.InvariantCulture));
     }
     private IEnumerable<XElement> SkillNodes => document.Root!.Element("newskills")!.Element("skills")!.Elements("skill");

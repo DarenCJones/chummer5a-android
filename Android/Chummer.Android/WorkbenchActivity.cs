@@ -261,18 +261,41 @@ public partial class WorkbenchActivity : Activity
     private void EditAttributes()
     {
         var c = RequireCharacter(); var attributes = c.DraftAttributes; var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = $"Enter final natural ratings. Attribute points remaining: {c.AttributePointsRemaining}; special points remaining: {c.SpecialPointsRemaining}." });
-        var fields = attributes.ToDictionary(a => a.Name, a => Input(form.Layout, $"{a.Name} ({a.Minimum}–{a.Maximum})", a.Rating.ToString()));
-        foreach (var input in fields.Values) input.InputType = InputTypes.ClassNumber;
+        form.Layout.AddView(new TextView(this) { Text = $"Enter final natural ratings and how many levels are funded with Karma. Attribute points remaining: {c.AttributePointsRemaining}; special points remaining: {c.SpecialPointsRemaining}. Karma pays five times each new rating for the highest levels. Minimum ratings are free; Essence changes reprice affected Magic/Resonance levels." });
+        var fields = new Dictionary<string, EditText>(); var funding = new Dictionary<string, EditText>();
+        foreach (var a in attributes)
+        {
+            fields[a.Name] = Input(form.Layout, $"{a.Name} ({a.Minimum}–{a.Maximum})", a.Rating.ToString());
+            funding[a.Name] = Input(form.Layout, $"{a.Name} levels paid with Karma", a.KarmaRating.ToString());
+            fields[a.Name].InputType = funding[a.Name].InputType = InputTypes.ClassNumber;
+        }
+        var cost = new TextView(this); form.Layout.AddView(cost);
+        void RefreshCost()
+        {
+            try
+            {
+                var total = 0;
+                foreach (var a in attributes)
+                {
+                    if (!int.TryParse(fields[a.Name].Text, out var rating) || !int.TryParse(funding[a.Name].Text, out var levels)) throw new ArgumentException("Enter whole-number ratings.");
+                    total += CharacterDocument.AttributeKarmaCost(rating, levels);
+                }
+                cost.Text = $"Attribute Karma cost: {total}; available including current attribute refunds: {c.Karma + attributes.Sum(a => CharacterDocument.AttributeKarmaCost(a.Rating, a.KarmaRating))}.";
+            }
+            catch (ArgumentException e) { cost.Text = e.Message; }
+        }
+        foreach (var input in fields.Values.Concat(funding.Values)) input.TextChanged += (_, _) => RefreshCost(); RefreshCost();
         EditDialog("Draft attributes", form.Scroll, () =>
         {
-            var ratings = new Dictionary<string, int>();
+            var ratings = new Dictionary<string, int>(); var karmaLevels = new Dictionary<string, int>();
             foreach (var (key, input) in fields)
             {
                 if (!int.TryParse(input.Text, out var rating)) throw new ArgumentException($"Enter a whole number for {key}.");
                 ratings[key] = rating;
+                if (!int.TryParse(funding[key].Text, out var levels)) throw new ArgumentException($"Enter whole-number Karma levels for {key}.");
+                karmaLevels[key] = levels;
             }
-            Commit(updated => updated.SetDraftAttributes(ratings));
+            Commit(updated => updated.SetDraftAttributes(ratings, karmaLevels));
         });
     }
     private void EditSkills()
@@ -583,7 +606,7 @@ public partial class WorkbenchActivity : Activity
     private void About()
     {
         var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.12\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Supported gear/ammo inventory, basic weapon accessories and core implants with supported Essence loss for priority drafts are available. Full magic/Matrix play, advanced ammunition/attack workflows, advanced accessories, cyberlimbs and burnout are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
+        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.13\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Supported gear/ammo inventory, basic weapon accessories and core implants with supported Essence loss for priority drafts are available. Full magic/Matrix play, advanced ammunition/attack workflows, advanced accessories, cyberlimbs and burnout are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
         using var license = Assets!.Open("LICENSE.txt"); using var reader = new StreamReader(license);
         form.Layout.AddView(new TextView(this) { Text = reader.ReadToEnd() });
         new AlertDialog.Builder(this).SetTitle("About this preview")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();

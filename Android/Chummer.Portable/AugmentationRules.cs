@@ -168,7 +168,7 @@ public sealed partial class CharacterDocument
             (string?)e.Element("improvedname")==name && (int?)e.Element("enabled")==1).ToArray();
         var minimum=Math.Max(0,AttributeInt(node,"metatypemin")+essence.Sum(e=>(int?)e.Element("min")??0));
         var maximum=Math.Max(minimum,AttributeInt(node,"metatypemax")+essence.Sum(e=>(int?)e.Element("max")??0));
-        return new DraftAttribute(name,minimum,maximum,minimum+AttributeInt(node,"base")+AttributeInt(node,"karma"));
+        return new DraftAttribute(name,minimum,maximum,minimum+AttributeInt(node,"base")+AttributeInt(node,"karma"),AttributeInt(node,"karma"));
     }
     internal void RefreshDraftEssenceEffects()
     {
@@ -186,6 +186,7 @@ public sealed partial class CharacterDocument
             }
             var node=AttributeNodes.Single(e=>(string?)e.Element("name")==attribute);node.SetElementValue("totalvalue",ReadDraftAttribute(node).Rating);
         }
+        RepriceDraftAttributeKarma();
     }
     internal void RemoveDraftAugmentation(string id)
     {

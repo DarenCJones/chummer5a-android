@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.12 (development checkpoint)
+Chummer standalone Android port — preview 0.13 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -38,7 +38,8 @@ Implemented in this preview:
 - Loaded ammunition damage/AP/type changes, remaining-round refunds and desktop-compatible clip references.
 - Core creation Essence loss for Magic/Resonance, restored ratings on implant removal and adept/mystic adept power-point revalidation.
 - Draft attribute, individual active skill, skill group, knowledge and language allocation.
-- Mixed point/Karma funding for active skills, skill groups and knowledge/languages, highest-level pricing, creation refunds and priority-grant repricing.
+- Mixed point/Karma funding for natural/special attributes, active skills, skill groups and knowledge/languages, highest-level pricing, creation refunds and priority-grant repricing.
+- Essence-based repricing of Karma-funded Magic/Resonance, with atomic rejection when restored attributes would exceed available Karma.
 - One knowledge/language specialization per non-native skill, costing 1 knowledge point or 7 Karma; entirely Karma-funded skills require Karma-funded specializations.
 - Standard draft point budgets, natural maxima and one-free-native-language validation.
 - Unaugmented core metatype draft limits, initiative and condition monitor calculations.
@@ -87,6 +88,8 @@ Validation:
 - API 34 x86_64 emulator: Sensitive System addition, blocked bioware purchase, cyberware quote/purchase, Essence 4.20 / Magic 4 / Spellcasting pool 9 and force-stop/reopen persistence verified.
 - Active/group/knowledge mixed funding, free-grant repricing, specialization funding restrictions and atomic/refund checks pass.
 - API 34 emulator: knowledge 4 with Ancient specialization cost 14 Karma/two knowledge points; Pistols 2 cost 6 Karma; Athletics 1 cost 5 Karma; ratings, pools, specialty and final balance 4 persisted after restart.
+- Natural/special attribute Karma costs, funding switches, priority budgets, compressed persistence and Essence-driven Magic cost restoration checks pass.
+- API 34 emulator: INT increased from 1 to 2 for 10 Karma; priority attribute points stayed at 18; INT 2 / Karma 1 persisted after force-stop/reopen.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:

@@ -957,3 +957,41 @@ karmaAspected.SetDraftGroup("Sorcery", freeSorcery + 1, 1);
 Assert(karmaAspected.Karma == 25 - 5 * (freeSorcery + 1), "A Karma group level above a free grant must pay the full new rating.");
 Reject(() => karmaAspected.SetDraftGroup("Sorcery", freeSorcery, freeSorcery));
 Console.WriteLine("PASS: skill group Karma/mixed funding, member ratings, free grants, conflicts, atomic rejection, reset refunds and compressed persistence.");
+
+var karmaAttributes = creation.CreateHumanDraft("Attribute Karma QA", "", priorities);
+karmaAttributes.SetDraftAttributes(new Dictionary<string,int> { ["BOD"] = 2, ["EDG"] = 3 }, new Dictionary<string,int> { ["BOD"] = 1, ["EDG"] = 1 });
+Assert(karmaAttributes.Karma == 0 && karmaAttributes.AttributePointsRemaining == 24 && karmaAttributes.SpecialPointsRemaining == 3,
+    "Karma-funded Body 2 / Edge 3 must cost 10+15 without using priority points.");
+var karmaAttributesBefore = Xml(karmaAttributes);
+Reject(() => karmaAttributes.SetDraftAttributes(new Dictionary<string,int> { ["BOD"] = 3 }));
+Reject(() => karmaAttributes.SetDraftAttributes(new Dictionary<string,int>(), new Dictionary<string,int> { ["BOD"] = 2 }));
+Assert(XNode.DeepEquals(karmaAttributesBefore, Xml(karmaAttributes)), "Invalid/unaffordable attribute Karma edits must be atomic.");
+karmaAttributes.SetDraftAttributes(new Dictionary<string,int>(), new Dictionary<string,int> { ["BOD"] = 0, ["EDG"] = 0 });
+Assert(karmaAttributes.Karma == 25 && karmaAttributes.AttributePointsRemaining == 23 && karmaAttributes.SpecialPointsRemaining == 2,
+    "Switching attribute levels to priority points must refund their Karma.");
+karmaAttributes.SetDraftAttributes(new Dictionary<string,int> { ["BOD"] = 3 }, new Dictionary<string,int> { ["BOD"] = 1 });
+Assert(karmaAttributes.Karma == 10 && karmaAttributes.AttributePointsRemaining == 23, "Mixed attribute funding must charge the highest level at five times rating.");
+using (var attributeSave = new MemoryStream())
+{
+    karmaAttributes.SaveCompressed(attributeSave); attributeSave.Position = 0;
+    var reopenedAttributes = CharacterDocument.LoadCompressed(attributeSave);
+    Assert(reopenedAttributes.DraftAttributes.Single(a => a.Name == "BOD") == new DraftAttribute("BOD", 1, 6, 3, 1) && reopenedAttributes.Karma == 10,
+        "Attribute Karma funding must survive compressed saves.");
+}
+var karmaMagicPriority = new PriorityChoice("Priority", "E", "B", "D", "A", "C", "Magician");
+var karmaMagic = creation.CreateDraft("Magic cost QA", "", karmaMagicPriority, "Human");
+karmaMagic.SetDraftAttributes(new Dictionary<string,int> { ["MAG"] = 4 }, new Dictionary<string,int> { ["MAG"] = 1 });
+Assert(karmaMagic.Karma == 5 && karmaMagic.SpecialPointsRemaining == 1, "Magic 4 above a free rating 3 must cost 20 Karma without consuming the heritage point.");
+augmentationRules.Purchase(karmaMagic, ImplantId("Dermal Plating"), 1, "Standard");
+Assert(karmaMagic.Karma == 10 && karmaMagic.DraftAttributes.Single(a => a.Name == "MAG").Rating == 3,
+    "Creation Essence loss must reprice the Karma-funded Magic level to its reduced rating.");
+qualityRules.Add(karmaMagic, QualityId("Catlike"));
+Assert(karmaMagic.Karma == 3, "Unrelated quality changes must not charge attribute Karma twice.");
+var cannotRestoreMagic = Xml(karmaMagic);
+Reject(() => augmentationRules.Remove(karmaMagic, karmaMagic.InstalledAugmentations.Single().Id));
+Assert(XNode.DeepEquals(cannotRestoreMagic, Xml(karmaMagic)), "Unaffordable restoration of Karma-funded Magic must not remove implants or change money.");
+qualityRules.Remove(karmaMagic, karmaMagic.SelectedQualities.Single().Id);
+augmentationRules.Remove(karmaMagic, karmaMagic.InstalledAugmentations.Single().Id);
+Assert(karmaMagic.Karma == 5 && karmaMagic.DraftAttributes.Single(a => a.Name == "MAG").Rating == 4,
+    "Implant removal must restore Magic and charge the restored attribute cost.");
+Console.WriteLine("PASS: attribute/special Karma splits, priority budgets, mixed costs, refunds, save/reopen and Essence-driven Magic repricing with atomic restoration rejection.");
