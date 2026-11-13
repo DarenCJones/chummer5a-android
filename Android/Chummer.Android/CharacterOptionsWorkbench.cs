@@ -84,7 +84,9 @@ public partial class WorkbenchActivity
         {
             var selected = trained[Math.Max(0,skill.SelectedItemPosition)]; var suggestions = Creation().SpecializationSuggestions(selected.Id);
             name.Text = suggestions.FirstOrDefault() ?? "";
-            details.Text = $"Suggestions: {string.Join(", ", suggestions)}\nBase pool: {c.DraftSkillPool(selected)} dice. Specialization adds +2 only when applicable.\nOne specialization per active skill during standard creation. Knowledge specializations and strict-group house rules are pending.";
+            details.Text = $"Suggestions: {string.Join(", ", suggestions)}\nBase pool: {c.DraftSkillPool(selected)} dice. Specialization adds +2 only when applicable.\n" +
+                (c.CanApplyDraftSpecialization(selected.Id)?"":"A selected quality currently disables specialization bonuses for this skill.\n")+
+                "One specialization per active skill during standard creation. Knowledge specializations and strict-group house rules are pending.";
         }
         skill.ItemSelected += (_, _) => Refresh(); Refresh();
         EditDialog("Add specialization", form.Scroll, () => Commit(updated => updated.AddDraftSpecialization(trained[skill.SelectedItemPosition].Id, name.Text ?? "", payment.SelectedItemPosition == 1)));
@@ -95,14 +97,16 @@ public partial class WorkbenchActivity
         if (trained.Length == 0) throw new InvalidOperationException("No supported skill pool is available. Imported-character pools are still being ported.");
         var form = Form(); var skill = Select(form.Layout, "Active skill", trained.Select(s => s.Name).ToArray());
         var specialization = new CheckBox(this) { Text = "Apply specialization (+2 only when applicable)" }; form.Layout.AddView(specialization);
+        var offHand=new CheckBox(this){Text="Off-hand action (-2 unless Ambidextrous)"};form.Layout.AddView(offHand);
         var conditionalView = new LinearLayout(this) { Orientation = Orientation.Vertical }; form.Layout.AddView(conditionalView);
         var conditions = new List<(ConditionalSkillBonus Bonus, CheckBox Check)>();
         var info = new TextView(this); form.Layout.AddView(info); var result = new TextView(this);
         void Refresh()
         {
             var selected = trained[Math.Max(0,skill.SelectedItemPosition)]; var spec = c.DraftSpecializations.FirstOrDefault(s => s.SkillId == selected.Id);
-            specialization.Checked = false; specialization.Enabled = spec is not null;
-            specialization.Text = spec is null ? "No specialization on this skill" : $"Apply {spec.Name} specialization (+2 when applicable)";
+            specialization.Checked = false; specialization.Enabled = spec is not null && c.CanApplyDraftSpecialization(selected.Id);
+            offHand.Checked=false;
+            specialization.Text = spec is null ? "No specialization on this skill" : !specialization.Enabled? $"{spec.Name}: specialization bonus disabled by a quality" : $"Apply {spec.Name} specialization (+2 when applicable)";
             conditionalView.RemoveAllViews(); conditions.Clear();
             foreach (var bonus in c.DraftConditionalSkillBonuses(selected))
             {
@@ -116,7 +120,7 @@ public partial class WorkbenchActivity
         Button(form.Layout,"Roll selected skill", () =>
         {
             var selected = trained[skill.SelectedItemPosition]; var spec = specialization.Checked ? c.DraftSpecializations.Single(s => s.SkillId == selected.Id).Name : null;
-            var pool = c.DraftContextualSkillPool(selected,spec,conditions.Where(p => p.Check.Checked).Select(p => p.Bonus.Id));
+            var pool = c.DraftContextualSkillPool(selected,spec,conditions.Where(p => p.Check.Checked).Select(p => p.Bonus.Id),offHand.Checked);
             if (pool == 0) throw new InvalidOperationException("The selected test has no dice after modifiers.");
             var roll = DicePool.Roll(new RollOptions(pool));
             result.Text = $"Pool: {pool}; hits: {roll.Hits}\n{(roll.CriticalGlitch ? "Critical glitch" : roll.Glitch ? "Glitch" : "No glitch")}\nDice: {string.Join(", ",roll.Dice)}";

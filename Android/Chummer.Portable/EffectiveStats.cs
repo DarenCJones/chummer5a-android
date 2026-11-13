@@ -64,7 +64,9 @@ public sealed partial class CharacterDocument
                     "CMThresholdOffset" => $"Wound penalty offset: {e.Element("val")!.Value} damage boxes per monitor",
                     "InitiativeDice" => $"Extra initiative dice: {e.Element("val")!.Value}",
                     "Skill" when (int?)e.Element("max")>0 => $"{name} skill maximum increase: +{e.Element("max")!.Value}",
-                    "Skill" => $"{name} skill pool bonus: +{e.Element("val")!.Value}",
+                    "Skill" => $"{name} skill pool bonus: {(e.Element("val")!.Value.StartsWith('-')?"":"+")}{e.Element("val")!.Value}",
+                    "DisableSpecializationEffects" => $"{name}: specialization bonuses disabled",
+                    "Ambidextrous" => "Ambidextrous: off-hand penalty ignored",
                     "WeaponCategoryDV" => $"{name} damage bonus: +{e.Element("val")!.Value}",
                     "WeaponSkillAccuracy" => $"{name} accuracy bonus: +{e.Element("val")!.Value}",
                     _ => $"{Regex.Replace(type, "([a-z])([A-Z])", "$1 $2")} {name} modifier: {e.Element("val")!.Value}"

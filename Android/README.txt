@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.9 (development checkpoint)
+Chummer standalone Android port — preview 0.10 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -23,8 +23,9 @@ Implemented in this preview:
 - Wound penalties, armor accessory caps/encumbrance, defense and damage resistance pools.
 - Purchase/equip/unequip/remove for 35 supported fixed-price core armor and weapon entries, with creation Nuyen refunds.
 - Strength-linked melee damage, accuracy bonuses, reach and equipment state in summaries.
-- 75 supported core quality templates: one-level purchases, positive/negative Karma limits, prerequisites, conflicts, refunds and saved improvement records.
+- 77 supported core quality templates: one-level purchases, positive/negative Karma limits, prerequisites, conflicts, refunds and saved improvement records.
 - Aptitude skill maxima, Exceptional Attribute natural maxima and Lucky Edge maxima, including allocation and removal validation.
+- Loss of Confidence skill prerequisites/penalties and specialization suppression; Ambidextrous for core two-arm bodies and contextual off-hand rolls.
 - Supported quality effects on trained skill pools, limits, damage resistance, wound thresholds and native-language allowances; conditional effects are shown separately.
 - One active skill specialization per skill during creation, costing 1 skill point or 7 Karma, with refunds and +2 situational pools.
 - Character-linked skill rolls with optional specialization and applicable conditional skill bonuses; untrained defaulting follows the catalog flags and standard -1 penalty.
@@ -102,4 +103,6 @@ Android runtime checks on the API 34 emulator:
 - An AK-97 loaded 38 APDS rounds, applied AP -6, fired a 3-round burst and retained 35 rounds/AP effects after restart. A Magician installed Alphaware Dermal Plating and retained Magic 5 / Essence 5.60 after restart.
 - Switching tabs resets the content scroll position so the selected tab's tools remain discoverable.
 - Aptitude allowed Spellcasting 7 with the expected 12-die pool, cost and persistence; Exceptional Attribute allowed Body 7 with 12 physical boxes and the expected point spending in the emulator.
+- Loss of Confidence reduced that casting pool to 10, disabled the owned specialization's bonus, and persisted; Ambidextrous kept the pool at 10 for a selected off-hand test after restart.
+- Loss of Confidence and Ambidextrous costs, prerequisites, modifier removal, core-body level limits and specialization suppression have portable regression coverage.
 - Preview trimming and AOT are disabled after the trimmed build aborted in Mono startup.

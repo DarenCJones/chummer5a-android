@@ -789,3 +789,28 @@ giftedSkillsMage.SetDraftGroup("Sorcery",2);
 Assert(creation.Skills(giftedSkillsMage).Single(s=>s.Name=="Spellcasting").Rating==7,"Aptitude did not allow a priority grant/group combination at rating 7.");
 Reject(()=>creation.AssignTalentSkills(giftedSkillsMage,["Counterspelling","Summoning"]));
 Console.WriteLine("PASS: Aptitude, Exceptional Attribute and Lucky choices/limits, point costs, safe removal, maximum-count rules, priority grants and Essence-loss interactions.");
+var confidenceRunner=creation.CreateDraft("Confidence","",priorities,"Human");
+Reject(()=>qualityRules.Add(confidenceRunner,QualityId("Loss of Confidence"),"Pistols"));
+confidenceRunner.SetDraftSkill(pistol.Id,4);confidenceRunner.AddDraftSpecialization(pistol.Id,"Semi-Automatics",false);
+var confidentSkill=creation.Skills(confidenceRunner).Single(s=>s.Id==pistol.Id);
+Assert(confidenceRunner.DraftSpecializedPool(confidentSkill,"Semi-Automatics")==7,"Specialization setup pool mismatch.");
+qualityRules.Add(confidenceRunner,QualityId("Loss of Confidence"),"Pistols");
+Assert(confidenceRunner.Karma==35 && confidenceRunner.DraftSkillPool(confidentSkill)==3 &&
+    confidenceRunner.DraftSpecializedPool(confidentSkill,"Semi-Automatics")==3 && !confidenceRunner.CanApplyDraftSpecialization(pistol.Id) &&
+    confidenceRunner.DraftContextualSkillPool(confidentSkill,"Semi-Automatics",[])==3,"Loss of Confidence failed to penalize the skill or disable specialization bonuses.");
+var beforeConfidenceReduction=Xml(confidenceRunner);Reject(()=>confidenceRunner.SetDraftSkill(pistol.Id,3));
+Assert(XNode.DeepEquals(beforeConfidenceReduction,Xml(confidenceRunner)),"Skill reduction bypassed the quality's rating prerequisite.");
+using(var confidenceBuffer=new MemoryStream())
+{
+    confidenceRunner.SaveCompressed(confidenceBuffer);confidenceBuffer.Position=0;var reopenedConfidence=CharacterDocument.LoadCompressed(confidenceBuffer);
+    Assert(XNode.DeepEquals(Xml(confidenceRunner),Xml(reopenedConfidence)) && !reopenedConfidence.CanApplyDraftSpecialization(pistol.Id),"Specialization suppression was lost after reopening.");
+}
+qualityRules.Remove(confidenceRunner,confidenceRunner.SelectedQualities.Single().Id);
+Assert(confidenceRunner.Karma==25 && confidenceRunner.DraftSpecializedPool(confidentSkill,"Semi-Automatics")==7,"Removing Loss of Confidence did not restore the specialization/pool or reverse its reward.");
+Assert(confidenceRunner.DraftContextualSkillPool(confidentSkill,null,[],true)==3,"Default off-hand penalty mismatch.");
+qualityRules.Add(confidenceRunner,QualityId("Ambidextrous"));
+Assert(confidenceRunner.Karma==21 && confidenceRunner.DraftAmbidextrous && confidenceRunner.DraftContextualSkillPool(confidentSkill,null,[],true)==5,"Ambidextrous cost or off-hand penalty removal mismatch.");
+Reject(()=>qualityRules.Add(confidenceRunner,QualityId("Ambidextrous")));
+qualityRules.Remove(confidenceRunner,confidenceRunner.SelectedQualities.Single().Id);
+Assert(!confidenceRunner.DraftAmbidextrous && confidenceRunner.DraftContextualSkillPool(confidentSkill,null,[],true)==3,"Ambidextrous removal did not restore the off-hand penalty.");
+Console.WriteLine("PASS: Loss of Confidence prerequisite/penalty/specialization suppression, save/reopen and removal; Ambidextrous costs, core-body limits and off-hand pools.");

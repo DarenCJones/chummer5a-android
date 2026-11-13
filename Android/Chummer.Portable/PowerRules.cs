@@ -142,6 +142,8 @@ public sealed partial class CharacterDocument
         var values = attributes ?? DraftAttributes.ToDictionary(a => a.Name, a => a.Rating);
         if (skillRatings is not null && DraftSpecializations.Any(s => skillRatings.GetValueOrDefault(s.Skill) < 1))
             throw new ArgumentException("Remove the specialization before reducing its skill to zero.");
+        if(skillRatings is not null && SelectedQualities.Any(q=>q.Name=="Loss of Confidence" && skillRatings.GetValueOrDefault(q.Extra)<4))
+            throw new ArgumentException("Remove Loss of Confidence before reducing its selected skill below rating 4.");
         if (LearnedPowers.Count == 0 && Number("magsplitadept") == 0) return;
         var magic = values.GetValueOrDefault("MAG");
         if (Number("magsplitadept") > magic || LearnedPowers.Sum(p => p.Cost) > (Field("prioritytalent") == "Mystic Adept" ? Number("magsplitadept") : magic)) throw new ArgumentException("Remove powers or reduce purchased power points before lowering Magic.");

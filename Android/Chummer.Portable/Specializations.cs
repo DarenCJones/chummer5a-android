@@ -45,7 +45,13 @@ public sealed partial class CharacterDocument
     public int DraftSpecializedPool(DraftSkill skill, string specialization)
     {
         if (!DraftSpecializations.Any(s => s.SkillId == skill.Id && s.Name.Equals(specialization, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("Unknown specialization for this skill.");
-        return Math.Max(0, DraftSkillPoolBeforeFloor(skill) + 2);
+        return Math.Max(0, DraftSkillPoolBeforeFloor(skill) + (CanApplyDraftSpecialization(skill.Id)?2:0));
+    }
+    public bool CanApplyDraftSpecialization(string skillId)
+    {
+        RequireDraft();var name=SkillNodes.Single(s=>(string?)s.Element("suid")==skillId).Element("name")!.Value;
+        return !document.Root!.Element("improvements")!.Elements().Any(e=>(string?)e.Element("improvementttype")=="DisableSpecializationEffects" &&
+            (string?)e.Element("improvedname")==name && (int?)e.Element("enabled")==1);
     }
     public IReadOnlyList<ConditionalSkillBonus> DraftConditionalSkillBonuses(DraftSkill skill)
     {
@@ -58,12 +64,16 @@ public sealed partial class CharacterDocument
             .Select(e => new ConditionalSkillBonus(string.Join("|", new[] { "sourcename", "improvementttype", "improvedname", "condition" }.Select(n => (string?)e.Element(n) ?? "")),
                 e.Element("condition")!.Value.Replace("LimitCondition_", ""), (int)e.Element("val")!)).ToArray();
     }
-    public int DraftContextualSkillPool(DraftSkill skill, string? specialization, IEnumerable<string> conditions)
+    public bool DraftAmbidextrous
+    {
+        get{RequireDraft();return document.Root!.Element("improvements")!.Elements().Any(e=>(string?)e.Element("improvementttype")=="Ambidextrous" && (int?)e.Element("enabled")==1);}
+    }
+    public int DraftContextualSkillPool(DraftSkill skill, string? specialization, IEnumerable<string> conditions,bool offHand=false)
     {
         var selected = conditions.ToHashSet(StringComparer.Ordinal); var available = DraftConditionalSkillBonuses(skill);
         if (selected.Any(id => !available.Any(b => b.Id == id))) throw new ArgumentException("A conditional bonus does not apply to this skill.");
         if (specialization is not null && !DraftSpecializations.Any(s => s.SkillId == skill.Id && s.Name.Equals(specialization, StringComparison.OrdinalIgnoreCase)))
             throw new ArgumentException("Unknown specialization.");
-        return Math.Max(0, DraftSkillPoolBeforeFloor(skill) + (specialization is null ? 0 : 2) + available.Where(b => selected.Contains(b.Id)).Sum(b => b.Value));
+        return Math.Max(0, DraftSkillPoolBeforeFloor(skill) + (specialization is not null && CanApplyDraftSpecialization(skill.Id) ? 2 : 0) + available.Where(b => selected.Contains(b.Id)).Sum(b => b.Value) - (offHand && !DraftAmbidextrous?2:0));
     }
 }

@@ -18,7 +18,7 @@ public sealed class QualityRules
         ["pathogencontactresist"]="PathogenContactResist", ["pathogeningestionresist"]="PathogenIngestionResist", ["pathogeninhalationresist"]="PathogenInhalationResist", ["pathogeninjectionresist"]="PathogenInjectionResist",
         ["toxincontactresist"]="ToxinContactResist", ["toxiningestionresist"]="ToxinIngestionResist", ["toxininhalationresist"]="ToxinInhalationResist", ["toxininjectionresist"]="ToxinInjectionResist"
     };
-    private static bool Supported(XElement q) => ((string?)q.Element("name") is "Aptitude" or "Exceptional Attribute" or "Lucky") || q.Element("firstlevelbonus") is null && q.Element("naturalweapons") is null &&
+    private static bool Supported(XElement q) => ((string?)q.Element("name") is "Aptitude" or "Exceptional Attribute" or "Lucky" or "Loss of Confidence") || q.Element("firstlevelbonus") is null && q.Element("naturalweapons") is null &&
         (q.Element("bonus")?.Elements() ?? []).All(e => NumericEffects.ContainsKey(e.Name.LocalName) && decimal.TryParse(e.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out _) ||
             e.Name.LocalName is "selecttext" or "ambidextrous" || e.Name.LocalName is "specificskill" or "skillcategory" or "skillattribute" &&
                 e.Elements().All(c => c.Name.LocalName is "name" or "bonus" or "condition") && int.TryParse((string?)e.Element("bonus"), out _) ||
@@ -30,12 +30,13 @@ public sealed class QualityRules
         if (xml.Root?.Name != "chummer") throw new InvalidDataException("Invalid quality catalog.");
         qualities = xml.Root.Element("qualities")!.Elements("quality").Where(q => (string?)q.Element("source") == "SR5" && q.Element("hide") is null &&
             (string?)q.Element("category") is "Positive" or "Negative" && Supported(q) &&
-            (q.Element("limit") is null || (string?)q.Element("limit") == "False" || int.TryParse((string?)q.Element("limit"), out _)))
+            (q.Element("limit") is null || (string?)q.Element("limit") == "False" || int.TryParse((string?)q.Element("limit"), out _) ||
+                (string?)q.Element("name")=="Ambidextrous" && (string?)q.Element("limit")=="{arm} - 1"))
             .ToDictionary(q => q.Element("id")!.Value, q => new XElement(q));
     }
     public IReadOnlyList<QualityEntry> Catalog => qualities.Values.Select(q => new QualityEntry(q.Element("id")!.Value, q.Element("name")!.Value,
-        q.Element("category")!.Value, (int)q.Element("karma")!, (string?)q.Element("limit") == "False" ? 0 : (int?)q.Element("limit") ?? 1,
-        q.Element("bonus")?.Element("selecttext") is not null || (string?)q.Element("name") is "Aptitude" or "Exceptional Attribute", q.Element("page")!.Value)).OrderBy(q => q.Name).ToArray();
+        q.Element("category")!.Value, (int)q.Element("karma")!, (string?)q.Element("limit") == "False" ? 0 : (string?)q.Element("name")=="Ambidextrous"?1:(int?)q.Element("limit") ?? 1,
+        q.Element("bonus")?.Element("selecttext") is not null || (string?)q.Element("name") is "Aptitude" or "Exceptional Attribute" or "Loss of Confidence", q.Element("page")!.Value)).OrderBy(q => q.Name).ToArray();
     public IReadOnlyList<string> Choices(CharacterDocument c,string sourceId)=>c.QualityRatingChoices(Catalog.Single(q=>q.Id==sourceId).Name);
     private static bool Predicate(XElement e, CharacterDocument c) => e.Name.LocalName switch {
         "oneof" => e.Elements().Any(p => Predicate(p,c)), "allof" or "required" => e.Elements().All(p => Predicate(p,c)),
@@ -62,6 +63,7 @@ public sealed class QualityRules
         if (!qualities.TryGetValue(sourceId, out var q)) throw new ArgumentException("This quality needs additional rule support.");
         var entry = Catalog.Single(e => e.Id == sourceId); extra = extra.Trim();
         var options=character.QualityRatingChoices(entry.Name);
+        if(entry.Name=="Loss of Confidence" && options.Count==0)throw new ArgumentException("Train an active skill to at least rating 4 before choosing Loss of Confidence.");
         if(options.Count>0)extra=options.FirstOrDefault(v=>v.Equals(extra,StringComparison.OrdinalIgnoreCase))??throw new ArgumentException("Choose a valid skill or attribute for this quality.");
         if (entry.Choice ? extra.Length == 0 || extra.Length > 200 : extra.Length > 0) throw new ArgumentException("Enter the quality's required choice, or leave it blank when no choice is needed.");
         var count = character.SelectedQualities.Count(e => e.Name == entry.Name);
@@ -92,8 +94,10 @@ public sealed class QualityRules
             if(b.Name.LocalName is "selectskill" or "selectattributes" or "specificattribute")
             {
                 var skill=b.Name=="selectskill";var target=skill||b.Name=="selectattributes"?extra:b.Element("name")!.Value;
-                var effect=CreationRules.BuiltInImprovement(skill?"Skill":"Attribute","Quality",id,target,0);
-                effect.SetElementValue("max",1);effects.Add(effect);continue;
+                var effect=CreationRules.BuiltInImprovement(skill?"Skill":"Attribute","Quality",id,target,skill?(decimal?)b.Element("val")??0:0);
+                effect.SetElementValue("max",skill?(int?)b.Element("max")??0:1);effects.Add(effect);
+                if(b.Element("disablespecializationeffects") is not null)effects.Add(CreationRules.BuiltInImprovement("DisableSpecializationEffects","Quality",id,target,0));
+                continue;
             }
             if (b.Name == "conditionmonitor")
             {

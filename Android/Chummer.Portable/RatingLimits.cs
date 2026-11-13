@@ -8,6 +8,7 @@ public sealed partial class CharacterDocument
     {
         RequireDraft();return name switch {
             "Aptitude"=>SkillNodes.Select(s=>s.Element("name")!.Value).OrderBy(s=>s).ToArray(),
+            "Loss of Confidence"=>SkillNodes.Where(s=>DraftSkillRating(s.Element("suid")!.Value)>=4).Select(s=>s.Element("name")!.Value).OrderBy(s=>s).ToArray(),
             "Exceptional Attribute"=>DraftAttributes.Where(a=>a.Name!="EDG").Select(a=>a.Name).ToArray(),_=>[]};
     }
     public int DraftSkillMaximum(string name)
@@ -23,6 +24,9 @@ public sealed partial class CharacterDocument
         foreach(var skill in SkillNodes)
             if(DraftSkillRating(skill.Element("suid")!.Value)>DraftSkillMaximum(skill.Element("name")!.Value))
                 throw new ArgumentException("Lower the skill rating before removing Aptitude.");
+        foreach(var quality in SelectedQualities.Where(q=>q.Name=="Loss of Confidence"))
+            if(!SkillNodes.Any(s=>(string?)s.Element("name")==quality.Extra && DraftSkillRating(s.Element("suid")!.Value)>=4))
+                throw new ArgumentException("Loss of Confidence requires its selected skill to remain at rating 4 or higher.");
         ValidatePowerConstraints();
     }
 }
