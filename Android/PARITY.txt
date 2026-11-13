@@ -20,10 +20,11 @@ PARTIAL — Magic/resonance: core talents, traditions, spells, preparations, for
 adept powers and PP purchases; summoning/binding, sprites, initiation, sustained
 effects, Way discounts and detailed spell/Matrix play pending.
 PARTIAL — Equipment: supported fixed-price core armor/weapons, gear/ammunition
-inventory, basic mounted accessories and core implants for mundane drafts;
-complete catalogs, ammo loading/firing, remaining accessories/modifications,
-active Matrix electronics, awakened implant Essence effects, cyberlimbs, nested
-implants, Essence holes, vehicles/drones and carrying-weight encumbrance pending.
+inventory, basic mounted accessories, standard loading/firing inventory tracking
+and core implants with creation Magic/Resonance loss; complete catalogs, unusual
+loading systems, integrated attack/recoil workflows, remaining accessories,
+active Matrix electronics, burnout, combined initiative-power/implant effects,
+cyberlimbs, nested implants, Essence holes, vehicles/drones and weight encumbrance pending.
 PARTIAL — Derived statistics: supported app-created drafts only. Complete desktop
 improvement expressions, effect interactions and imported-character recalculation pending.
 PARTIAL — Career: manual ledger and damage records; finalization, advancement,

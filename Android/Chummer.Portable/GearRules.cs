@@ -6,7 +6,7 @@ using System.Xml.Linq;
 
 namespace Chummer.Portable;
 public sealed record GearEntry(string Id,string Name,string Category,decimal Cost,decimal CostFor,bool Ammo,string Page);
-public sealed record PurchasedGear(string Id,string Name,int Quantity,string Extra,decimal Cost);
+public sealed record PurchasedGear(string Id,string Name,int Quantity,string Extra,decimal Cost,string LoadedInto="");
 public sealed class GearRules
 {
     private readonly Dictionary<string,XElement> items;
@@ -51,7 +51,7 @@ public sealed partial class CharacterDocument
     public IReadOnlyList<PurchasedGear> DraftPurchasedGear
     {
         get{RequireDraft();return (document.Root!.Element("gears")?.Elements("gear")??[]).Where(g=>g.Element("androidpurchasecost") is not null).Select(g=>new PurchasedGear(
-            g.Element("guid")!.Value,g.Element("name")!.Value,(int)g.Element("qty")!,(string?)g.Element("extra")??"",(decimal)g.Element("androidpurchasecost")!)).ToArray();}
+            g.Element("guid")!.Value,g.Element("name")!.Value,(int)g.Element("qty")!,(string?)g.Element("extra")??"",(decimal)g.Element("androidpurchasecost")!,(string?)g.Element("androidloadedweapon")??"")).ToArray();}
     }
     internal void AddDraftGear(XElement item,decimal cost)
     {
@@ -60,6 +60,7 @@ public sealed partial class CharacterDocument
     public void RemoveDraftPurchasedGear(string id)
     {
         var item=DraftPurchasedGear.SingleOrDefault(g=>g.Id==id)??throw new ArgumentException("Unknown purchased gear stack.");
+        if(item.LoadedInto.Length>0)throw new InvalidOperationException("Unload this ammunition before removing its stack.");
         document.Root!.Element("gears")!.Elements().Single(g=>(string?)g.Element("guid")==id).Remove();SetField("nuyen",(Nuyen+item.Cost).ToString(CultureInfo.InvariantCulture));
     }
 }

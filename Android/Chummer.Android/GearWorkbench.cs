@@ -21,7 +21,7 @@ public partial class WorkbenchActivity
             else
             {
                 var items=RequireCharacter().DraftPurchasedGear.ToArray();if(items.Length==0)throw new InvalidOperationException("No gear stacks have been purchased.");
-                new AlertDialog.Builder(this).SetTitle("Purchased gear")!.SetItems(items.Select(g=>$"{g.Name} {g.Extra} × {g.Quantity}").ToArray(),(_,selected)=>
+                new AlertDialog.Builder(this).SetTitle("Purchased gear")!.SetItems(items.Select(g=>$"{g.Name} {g.Extra} × {g.Quantity}{(g.LoadedInto.Length>0?" (loaded)":"")}").ToArray(),(_,selected)=>
                     new AlertDialog.Builder(this).SetMessage($"Remove this stack and refund {items[selected.Which].Cost:N2} Nuyen?")!.SetNegativeButton("Cancel",(_,_)=>{})!
                         .SetPositiveButton("Remove",(_,_)=>Guard(()=>Commit(c=>c.RemoveDraftPurchasedGear(items[selected.Which].Id))))!.Show())!.Show();
             }
@@ -34,7 +34,7 @@ public partial class WorkbenchActivity
         var quantity=Input(form.Layout,"Quantity / rounds","1");quantity.InputType=global::Android.Text.InputTypes.ClassNumber;
         var categories=Gear().AmmoCategories.ToArray();var category=Select(form.Layout,"Ammunition weapon category",categories);
         var details=new TextView(this);form.Layout.AddView(details);
-        form.Layout.AddView(new TextView(this){Text="Inventory purchases for supported fixed-price, unrated core gear and ammunition. Ammo loading, firing, attachments, rated/active gear effects and wireless bonuses are still being ported. Purchased ammunition does not modify a weapon until a loading workflow is implemented."});
+        form.Layout.AddView(new TextView(this){Text="Inventory purchases for supported fixed-price, unrated core gear and ammunition. Use Play → Load / fire / unload weapons to load compatible rounds and record firing. Supported ammunition modifies damage/AP only while loaded. Additional attachments, rated/active gear effects and wireless bonuses are still being ported."});
         void Refresh()
         {
             if(items.Length==0){details.Text="No matching supported gear.";return;}

@@ -88,6 +88,7 @@ public sealed partial class CharacterDocument
     {
         RequireDraft(); var item = EquipmentNodes.SingleOrDefault(e => (string?)e.Element("guid") == id) ?? throw new ArgumentException("Unknown equipment item.");
         var refund = (decimal?)item.Element("androidpurchasecost") ?? 0;
+        if(item.Name=="weapon")UnloadDraftWeapon(id);
         refund+=item.Element("accessories")?.Elements("accessory").Sum(a=>(decimal?)a.Element("androidpurchasecost")??0)??0;
         item.Remove(); SetField("nuyen", (Nuyen + refund).ToString(CultureInfo.InvariantCulture));
     }
@@ -103,8 +104,9 @@ public sealed partial class CharacterDocument
             var accuracy = (string?)e.Element("accuracy") == "Physical" ? stats.PhysicalLimit : (int)e.Element("accuracy")!;
             accuracy += (int)DraftEffect("WeaponSkillAccuracy", skill);
             accuracy+=AccessoryBonus(e,"accuracy");
-            return new WeaponStats(e.Element("name")!.Value, skill, value + damage.Groups[3].Value, accuracy, (string?)e.Element("ap") ?? "0",
-                (string?)e.Element("mode") ?? "", (string?)e.Element("ammo") ?? "", ((int?)e.Element("reach") ?? 0) + (int)DraftEffect("Reach"),AccessoryBonus(e,"rc"),AccessoryBonus(e,"rc",true));
+            var ammunition=LoadedAmmoEffects(e,value+damage.Groups[3].Value,(string?)e.Element("ap")??"0");
+            return new WeaponStats(e.Element("name")!.Value, skill, ammunition.Damage, accuracy, ammunition.AP,
+                LoadedFiringMode(e), (string?)e.Element("ammo") ?? "", ((int?)e.Element("reach") ?? 0) + (int)DraftEffect("Reach"),AccessoryBonus(e,"rc"),AccessoryBonus(e,"rc",true));
         }).ToArray();
     }
 }

@@ -24,7 +24,10 @@ public static class CharacterSheet
                 html.Append("<li>").Append(Encode($"{implant.Name} {implant.Rating} — {implant.Grade}; {implant.Essence:0.00} Essence")).Append("</li>");
             html.Append("</ul>");
             html.Append("<h2>Purchased gear and ammunition</h2><ul>");
-            foreach(var gear in character.DraftPurchasedGear)html.Append("<li>").Append(Encode($"{gear.Name} {gear.Extra} × {gear.Quantity}")).Append("</li>");
+            foreach(var gear in character.DraftPurchasedGear)html.Append("<li>").Append(Encode($"{gear.Name} {gear.Extra} × {gear.Quantity}{(gear.LoadedInto.Length>0?" (loaded)":"")}")).Append("</li>");
+            html.Append("</ul>");
+            html.Append("<h2>Loaded ammunition</h2><ul>");
+            foreach(var weapon in character.DraftLoadedAmmunition)html.Append("<li>").Append(Encode($"{weapon.Weapon}: {weapon.Rounds}/{weapon.Capacity} rounds; {weapon.Name}")).Append("</li>");
             html.Append("</ul>");
             html.Append("<h2>Weapon accessories</h2><ul>");
             foreach(var accessory in character.DraftAccessories)html.Append("<li>").Append(Encode($"{accessory.Weapon}: {accessory.Name} ({accessory.Mount}); {(accessory.Equipped?"Enabled":"Disabled")}")).Append("</li>");
@@ -44,7 +47,7 @@ public static class CharacterSheet
                 $"Limits: Physical {effective.PhysicalLimit}, Mental {effective.MentalLimit}, Social {effective.SocialLimit}\n" +
                 $"Initiative: {effective.Initiative} + {effective.InitiativeDice}D6\nArmor: {effective.Armor}; armor penalty: {effective.ArmorPenalty}; wound penalty: {effective.WoundPenalty}\n" +
                 $"Defense: {effective.DefensePool}; damage resistance before AP: {effective.SoakPool}\nCondition monitors: {effective.PhysicalBoxes} Physical / {effective.StunBoxes} Stun"))
-                .Append("</p><p>Active powers, ammunition, situational modifiers and carrying-weight penalties require manual handling.</p>");
+                .Append("</p><p>Active powers, attack/recoil penalties, situational modifiers and carrying-weight penalties require manual handling.</p>");
             if (character.Field("adept") == "True")
             {
                 html.Append("<h2>Adept powers</h2><p>").Append(Encode($"Power points remaining: {character.PowerPointsRemaining:0.##} / {character.PowerPointsTotal:0.##}"))

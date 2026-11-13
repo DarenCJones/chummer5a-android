@@ -42,6 +42,8 @@ public sealed class PowerRules
         if (character.Field("adept") != "True") throw new InvalidOperationException("This talent has no adept powers.");
         if (!powers.TryGetValue(sourceId, out var p)) throw new ArgumentException("Unknown core power.");
         var entry = Catalog.Single(e => e.Id == sourceId); extra = extra.Trim();
+        if(entry.Name=="Improved Reflexes" && character.InstalledAugmentations.Any(a=>a.Name is "Wired Reflexes" or "Reaction Enhancers" or "Synaptic Booster"))
+            throw new InvalidOperationException("Combining Improved Reflexes with initiative implants needs additional interaction support.");
         if (entry.Name == "Pain Resistance" && character.HasQuality("High Pain Tolerance")) throw new ArgumentException("Pain Resistance conflicts with High Pain Tolerance.");
         var choices = Choices(sourceId, character, creation);
         if (choices.Count > 0) extra = choices.FirstOrDefault(c => c.Equals(extra, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException("Choose one of the listed power options.");

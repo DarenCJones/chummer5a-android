@@ -32,13 +32,12 @@ public partial class WorkbenchActivity
     }
     private void InstallAugmentation()
     {
-        if(RequireCharacter().Field("prioritytalent")!="Mundane")throw new InvalidOperationException("Implant editing currently supports mundane drafts. Magic/Resonance loss and power revalidation are being ported.");
         var all=Augmentations().Catalog.ToArray();var items=all;var form=Form();
         var search=Input(form.Layout,"Search implants");var choice=Select(form.Layout,"Implant",items.Select(a=>a.Name).ToArray());
         var rating=Input(form.Layout,"Implant rating","1");rating.InputType=global::Android.Text.InputTypes.ClassNumber;
         var grades=Augmentations().Grades.ToArray();var grade=Select(form.Layout,"Implant grade",grades);
         var details=new TextView(this);form.Layout.AddView(details);
-        form.Layout.AddView(new TextView(this){Text="Supported core implants for mundane creation drafts. Wireless bonuses stay off. Cyberlimbs, nested implants, Essence holes, magical/technomancer implants and additional grade or house-rule effects are pending. Removal during creation refunds the purchase and restores Essence."});
+        form.Layout.AddView(new TextView(this){Text="Supported core implants for priority creation drafts. Essence loss reduces Magic/Resonance and their maxima; existing powers and purchased power points must fit the reduced ratings. Burnout to zero, combined initiative-power/implant interactions, wireless bonuses, cyberlimbs, nested implants, Essence holes and additional grade or house-rule effects are pending. Creation removal restores cost and Essence."});
         void Refresh()
         {
             if(items.Length==0){details.Text="No matching supported implant.";return;}

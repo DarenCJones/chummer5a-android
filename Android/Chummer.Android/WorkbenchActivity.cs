@@ -14,6 +14,7 @@ namespace Chummer.AndroidApp;
 public partial class WorkbenchActivity : Activity
 {
     private TextView status = null!;
+    private ScrollView? mainScroll;
     private CharacterDocument? character;
     private string? currentFile;
     private InitiativeTracker initiative = new();
@@ -42,7 +43,7 @@ public partial class WorkbenchActivity : Activity
             tabs.AddView(tab, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1));
         }
         shell.AddView(tabs);
-        var scroll = new ScrollView(this); scroll.AddView(layout);
+        var scroll = new ScrollView(this); mainScroll=scroll; scroll.AddView(layout);
         shell.AddView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
         SetContentView(shell);
         layout.AddView(new TextView(this) { Text = "Offline development preview. Create core metahuman drafts, assign talents and powers, buy supported equipment, and use play tools. Creation finalization and full calculations for imported characters are still being ported." });
@@ -67,6 +68,7 @@ public partial class WorkbenchActivity : Activity
         MenuButton(layout, "Draft knowledge and languages", EditKnowledge, "Create");
         MenuButton(layout, "Add Karma / Nuyen transaction", AddTransaction, "Play");
         MenuButton(layout, "Track damage", EditDamage, "Play");
+        MenuButton(layout, "Load / fire / unload weapons", ManageAmmunition, "Play");
         MenuButton(layout, "View character and inventory", ShowCharacter, "Characters");
         MenuButton(layout, "View career history", ShowHistory, "Play");
         MenuButton(layout, "Export character copy", Export, "Characters");
@@ -112,6 +114,7 @@ public partial class WorkbenchActivity : Activity
         selectedTab = navigation.ContainsKey(name) ? name : "Characters";
         foreach (var (view, tab) in menuItems) view.Visibility = tab == selectedTab ? ViewStates.Visible : ViewStates.Gone;
         foreach (var (tab, button) in navigation) button.Enabled = tab != selectedTab;
+        if(mainScroll is {} scroll)scroll.Post(()=>scroll.ScrollTo(0,0));
         if (character is not null) ShowCharacter();
         else status.Text = selectedTab switch
         {
@@ -537,7 +540,7 @@ public partial class WorkbenchActivity : Activity
     private void About()
     {
         var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.7\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Supported gear/ammo inventory, basic weapon accessories and core implants for mundane drafts are available. Full magic/Matrix play, ammunition loading, advanced accessories, cyberlimbs and awakened implant effects are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
+        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.8\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Supported gear/ammo inventory, basic weapon accessories and core implants with supported Essence loss for priority drafts are available. Full magic/Matrix play, advanced ammunition/attack workflows, advanced accessories, cyberlimbs and burnout are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
         using var license = Assets!.Open("LICENSE.txt"); using var reader = new StreamReader(license);
         form.Layout.AddView(new TextView(this) { Text = reader.ReadToEnd() });
         new AlertDialog.Builder(this).SetTitle("About this preview")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();

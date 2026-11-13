@@ -191,8 +191,7 @@ public sealed partial class CharacterDocument
             RequireDraft();
             return AttributeNodes.Where(e => StandardAttributeNames.Contains((string?)e.Element("name")) || (string?)e.Element("name") == "EDG" ||
                     ((string?)e.Element("name") == "MAG" && Field("magenabled") == "True") || ((string?)e.Element("name") == "RES" && Field("resenabled") == "True"))
-                .Select(e => new DraftAttribute(e.Element("name")!.Value, AttributeInt(e, "metatypemin"), AttributeInt(e, "metatypemax"),
-                    AttributeInt(e, "metatypemin") + AttributeInt(e, "base") + AttributeInt(e, "karma"))).ToArray();
+                .Select(ReadDraftAttribute).ToArray();
         }
     }
     public int AttributePointsRemaining => (int)Number("totalattributes") - DraftAttributes.Where(e => StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum);
@@ -203,6 +202,7 @@ public sealed partial class CharacterDocument
         if (ratings.Keys.Any(k => !available.ContainsKey(k))) throw new ArgumentException("Unknown attribute.");
         var proposed = available.Values.Select(e => e with { Rating = ratings.TryGetValue(e.Name, out var r) ? r : e.Rating }).ToArray();
         if (proposed.Any(e => e.Rating < e.Minimum || e.Rating > e.Maximum)) throw new ArgumentException("An attribute is outside its metatype limits.");
+        if(InstalledAugmentations.Count>0 && proposed.Any(a=>a.Name is "MAG" or "RES" && a.Rating<1))throw new InvalidOperationException("Burning Magic or Resonance to zero is not supported yet.");
         if (proposed.Where(e => StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum) > Number("totalattributes")) throw new ArgumentException("Not enough attribute points.");
         if (proposed.Where(e => !StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum) > Number("totalspecial")) throw new ArgumentException("Not enough special attribute points.");
         if (proposed.Count(e => StandardAttributeNames.Contains(e.Name) && e.Rating == e.Maximum) > 1) throw new ArgumentException("Only one physical or mental attribute may start at its natural maximum under the standard rules.");

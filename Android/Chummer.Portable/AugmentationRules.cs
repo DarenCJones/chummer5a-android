@@ -70,8 +70,9 @@ public sealed class AugmentationRules
     public void Purchase(CharacterDocument character,string id,int rating,string grade)
     {
         _=character.DraftAttributes;
-        if(character.Field("prioritytalent")!="Mundane")throw new InvalidOperationException("Implant editing currently supports mundane drafts. Magic/Resonance loss and power revalidation are being ported.");
         var item=items[id];var data=item.Data;var quote=Quote(id,rating,grade);
+        if(character.LearnedPowers.Any(p=>p.Name=="Improved Reflexes") && data.Element("name")!.Value is "Wired Reflexes" or "Reaction Enhancers" or "Synaptic Booster")
+            throw new InvalidOperationException("Combining Improved Reflexes with initiative implants needs additional interaction support.");
         if(character.Nuyen<quote.Cost)throw new ArgumentException("Not enough Nuyen.");
         if(character.InstalledAugmentations.Any(a=>a.Name==data.Element("name")!.Value))throw new ArgumentException("This implant is already installed. Remove it before changing its rating or grade.");
         var guid=Guid.NewGuid().ToString("D");
@@ -83,7 +84,7 @@ public sealed class AugmentationRules
         foreach(var name in new[]{"name","category","ess","capacity","avail","cost","source","page","bonus"})
             if(data.Element(name) is {} field)node.Add(new XElement(field));
         var updated=character.Clone();updated.AddDraftAugmentation(node,Effects(data.Element("bonus"),guid,item.Kind,rating),quote.Cost);
-        Validate(updated);updated.ValidateAugmentationEffects();character.ReplaceDraftWith(updated);
+        updated.RefreshDraftEssenceEffects();Validate(updated);updated.ValidateAugmentationEffects();character.ReplaceDraftWith(updated);
     }
     public void Validate(CharacterDocument character)
     {
@@ -99,7 +100,7 @@ public sealed class AugmentationRules
     }
     public void Remove(CharacterDocument character,string id)
     {
-        var updated=character.Clone();updated.RemoveDraftAugmentation(id);Validate(updated);updated.ValidateAugmentationEffects();character.ReplaceDraftWith(updated);
+        var updated=character.Clone();updated.RemoveDraftAugmentation(id);updated.RefreshDraftEssenceEffects();Validate(updated);updated.ValidateAugmentationEffects();character.ReplaceDraftWith(updated);
     }
     private static XElement[] Effects(XElement? bonus,string guid,string kind,int rating)
     {
@@ -141,6 +142,37 @@ public sealed partial class CharacterDocument
     {
         if(DraftEssence<=0)throw new ArgumentException("Implants must leave Essence above zero.");
         foreach(var attribute in StandardAttributeNames)if(DraftEffect("Attribute",attribute,"aug")>4)throw new ArgumentException("Attribute augmentations cannot exceed +4.");
+        foreach(var attribute in DraftAttributes)
+        {
+            if(attribute.Rating>attribute.Maximum)throw new ArgumentException("Reduce the special attribute allocation before installing this much Essence cost.");
+            if(attribute.Name is "MAG" or "RES" && attribute.Rating<1)throw new InvalidOperationException("Burning Magic or Resonance to zero is not supported yet. Raise the attribute or reduce the implant Essence cost.");
+        }
+        ValidatePowerConstraints();
+    }
+    private DraftAttribute ReadDraftAttribute(XElement node)
+    {
+        var name=node.Element("name")!.Value;
+        var essence=document.Root!.Element("improvements")!.Elements("improvement").Where(e=>(string?)e.Element("improvementsource")=="EssenceLossChargen" &&
+            (string?)e.Element("improvedname")==name && (int?)e.Element("enabled")==1).ToArray();
+        var minimum=Math.Max(0,AttributeInt(node,"metatypemin")+essence.Sum(e=>(int?)e.Element("min")??0));
+        var maximum=Math.Max(minimum,AttributeInt(node,"metatypemax")+essence.Sum(e=>(int?)e.Element("max")??0));
+        return new DraftAttribute(name,minimum,maximum,minimum+AttributeInt(node,"base")+AttributeInt(node,"karma"));
+    }
+    internal void RefreshDraftEssenceEffects()
+    {
+        RequireDraft();var improvements=document.Root!.Element("improvements")!;
+        improvements.Elements().Where(e=>(string?)e.Element("improvementsource")=="EssenceLossChargen" && (string?)e.Element("androidbuiltin")=="True").Remove();
+        var loss=(int)decimal.Ceiling(6-DraftEssence);
+        foreach(var attribute in new[]{"MAG","MAGAdept","RES"})
+        {
+            if(attribute=="RES"?Field("resenabled")!="True":Field("magenabled")!="True")continue;
+            if(loss>0)
+            {
+                var effect=CreationRules.BuiltInImprovement("Attribute","EssenceLossChargen","",attribute,0);
+                effect.SetElementValue("min",-loss);effect.SetElementValue("max",-loss);improvements.Add(effect);
+            }
+            var node=AttributeNodes.Single(e=>(string?)e.Element("name")==attribute);node.SetElementValue("totalvalue",ReadDraftAttribute(node).Rating);
+        }
     }
     internal void RemoveDraftAugmentation(string id)
     {

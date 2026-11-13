@@ -601,7 +601,44 @@ using(var implantBuffer=new MemoryStream())
     augmentedRunner.SaveCompressed(implantBuffer);implantBuffer.Position=0;var reopenedImplants=CharacterDocument.LoadCompressed(implantBuffer);
     Assert(XNode.DeepEquals(Xml(augmentedRunner),Xml(reopenedImplants)) && reopenedImplants.DraftEssence==5.3m && reopenedImplants.InstalledAugmentations.Any(a=>a.Kind=="Bioware"),"Implant save/reopen lost source kind, Essence or effects.");
 }
-Reject(()=>augmentationRules.Purchase(adept.Clone(),ImplantId("Dermal Plating"),1,"Standard"));
+var augmentedAdept=adept.Clone();var adeptSpecialBefore=augmentedAdept.SpecialPointsRemaining;
+augmentationRules.Purchase(augmentedAdept,ImplantId("Dermal Plating"),1,"Standard");
+Assert(augmentedAdept.DraftAttributes.Single(a=>a.Name=="MAG").Rating==3 && augmentedAdept.DraftAttributes.Single(a=>a.Name=="MAG").Maximum==5 &&
+    augmentedAdept.SpecialPointsRemaining==adeptSpecialBefore && augmentedAdept.PowerPointsTotal==3,"Adept Essence loss changed point spending or omitted Magic/PP reduction.");
+var essenceXml=Xml(augmentedAdept).Descendants("improvement").Single(e=>(string?)e.Element("improvementsource")=="EssenceLossChargen" && (string?)e.Element("improvedname")=="MAG");
+Assert((int?)essenceXml.Element("min")==-1 && (int?)essenceXml.Element("max")==-1 && (int?)essenceXml.Element("aug")==0,"Essence loss did not use desktop creation min/max improvement records.");
+augmentationRules.Remove(augmentedAdept,augmentedAdept.InstalledAugmentations.Single().Id);
+Assert(augmentedAdept.DraftAttributes.Single(a=>a.Name=="MAG").Rating==4 && augmentedAdept.PowerPointsTotal==4,"Removing a creation implant did not restore Magic and power points.");
+var wealthyAdept=creation.CreateDraft("Wealthy adept","",new PriorityChoice("Priority","D","B","E","A","C","Adept"),"Human");
+var fullPowerAdept=wealthyAdept.Clone();powerRules.Learn(fullPowerAdept,creation,PowerId("Mystic Armor"),4);
+powerRules.Learn(fullPowerAdept,creation,PowerId("Improved Physical Attribute"),2,"STR");
+var fullPowerBefore=Xml(fullPowerAdept);
+Reject(()=>augmentationRules.Purchase(fullPowerAdept,ImplantId("Wired Reflexes"),1,"Standard"));
+Assert(XNode.DeepEquals(fullPowerBefore,Xml(fullPowerAdept)),"Implant Essence loss left an overspent power pool or partially changed data.");
+var augmentedTechno=techno.Clone();var originalRES=augmentedTechno.DraftAttributes.Single(a=>a.Name=="RES").Rating;
+augmentationRules.Purchase(augmentedTechno,ImplantId("Toxin Extractor"),1,"Standard");
+Assert(augmentedTechno.DraftAttributes.Single(a=>a.Name=="RES").Rating==originalRES-1 && augmentedTechno.DraftDrainPool()==techno.DraftDrainPool()-1,"Technomancer Essence loss did not affect Resonance/fading.");
+var augmentedMage=creation.CreateDraft("Augmented mage","",magicianPriority,"Human");
+augmentationRules.Purchase(augmentedMage,ImplantId("Dermal Plating"),1,"Alphaware");
+Assert(augmentedMage.DraftAttributes.Single(a=>a.Name=="MAG").Rating==5 && augmentedMage.DraftAttributes.Single(a=>a.Name=="MAG").Minimum==5,"Magician priority minimum was not adjusted for Essence loss.");
+using(var awakenedBuffer=new MemoryStream())
+{
+    augmentedMage.SaveCompressed(awakenedBuffer);awakenedBuffer.Position=0;var reopenedAwakened=CharacterDocument.LoadCompressed(awakenedBuffer);
+    Assert(XNode.DeepEquals(Xml(augmentedMage),Xml(reopenedAwakened)) && reopenedAwakened.DraftAttributes.Single(a=>a.Name=="MAG").Rating==5,
+        "Awakened Essence loss changed after reopening.");
+    augmentationRules.Remove(reopenedAwakened,reopenedAwakened.InstalledAugmentations.Single().Id);
+    Assert(reopenedAwakened.DraftAttributes.Single(a=>a.Name=="MAG").Rating==6,"Removing a saved awakened implant did not restore Magic.");
+}
+var mysticWithPoints=mystic.Clone();mysticWithPoints.SetMysticPowerPoints(4);var mysticBeforeLoss=Xml(mysticWithPoints);
+Reject(()=>augmentationRules.Purchase(mysticWithPoints,ImplantId("Dermal Plating"),1,"Standard"));
+Assert(XNode.DeepEquals(mysticBeforeLoss,Xml(mysticWithPoints)),"Implant reduced Magic below purchased mystic adept PP without revalidation.");
+var initiativeAdept=wealthyAdept.Clone();powerRules.Learn(initiativeAdept,creation,PowerId("Improved Reflexes"),1);
+Reject(()=>augmentationRules.Purchase(initiativeAdept,ImplantId("Reaction Enhancers"),1,"Standard"));
+var initiativeImplantAdept=wealthyAdept.Clone();augmentationRules.Purchase(initiativeImplantAdept,ImplantId("Reaction Enhancers"),1,"Standard");
+Reject(()=>powerRules.Learn(initiativeImplantAdept,creation,PowerId("Improved Reflexes"),1));
+var burnoutDraft=creation.CreateDraft("Burnout guard","",new PriorityChoice("Priority","E","B","C","A","D","Adept"),"Human");
+var beforeBurnout=Xml(burnoutDraft);Reject(()=>augmentationRules.Purchase(burnoutDraft,ImplantId("Wired Reflexes"),2,"Standard"));
+Assert(XNode.DeepEquals(beforeBurnout,Xml(burnoutDraft)),"Unsupported burnout partially changed the character.");
 Console.WriteLine($"PASS: {augmentationRules.Catalog.Count} core implant templates, grades, cost/Essence/availability, conflicts, non-stacking effects, social limit and atomic removal/refunds.");
 using var gearInventoryData=File.OpenRead(Path.Combine(root,"Chummer","data","gear.xml"));
 using var gearWeaponData=File.OpenRead(Path.Combine(root,"Chummer","data","weapons.xml"));
@@ -646,3 +683,66 @@ var parentRemoval=gunRunner.Clone();parentRemoval.RemoveDraftEquipment(gun.Id);
 Assert(parentRemoval.Nuyen==gunCash && parentRemoval.DraftAccessories.Count==0,"Removing a weapon did not refund its purchased accessories.");
 gunRunner.RemoveDraftAccessory(gun.Id,sight.Id);Assert(gunRunner.Nuyen==gunCash-1150 && gunRunner.DraftWeapons().Single().Accuracy==5,"Accessory removal/refund did not reverse effects.");
 Console.WriteLine("PASS: weapon accessory mounts, costs, accuracy, deployed recoil, disabled effects, parent/child refunds and compressed round trips.");
+var firingRunner=draft.Clone();var firingStartCash=firingRunner.Nuyen;
+equipmentRules.Purchase(firingRunner,ak.Id,true);var firingWeapon=firingRunner.DraftEquipment.Single(w=>w.Name=="AK-97");
+gearRules.Purchase(firingRunner,apdsAmmo.Id,100,"Assault Rifles");var reserveAmmo=firingRunner.DraftPurchasedGear.Single();
+var walletBeforeLoad=firingRunner.Nuyen;firingRunner.LoadDraftWeapon(firingWeapon.Id,reserveAmmo.Id,38);
+var loadedState=firingRunner.DraftLoadedAmmunition.Single();
+Assert(loadedState.Rounds==38 && loadedState.Capacity==38 && firingRunner.DraftPurchasedGear.Sum(g=>g.Quantity)==100 &&
+    firingRunner.DraftPurchasedGear.Sum(g=>g.Cost)==1200 && firingRunner.Nuyen==walletBeforeLoad && firingRunner.DraftWeapons().Single().AP=="-6",
+    "Loading duplicated/lost rounds or money, or did not apply APDS penetration.");
+var clipXml=Xml(firingRunner).Descendants("clip").Single();
+Assert((string?)clipXml.Element("id")==loadedState.GearId && (string?)clipXml.Element("location")=="loaded" &&
+    Xml(firingRunner).Descendants("gear").Single(g=>(string?)g.Element("guid")==loadedState.GearId).Element("qty")!.Value=="38",
+    "Loaded ammunition did not use the desktop clip/gear reference schema.");
+var beforeLoadReject=Xml(firingRunner);
+Reject(()=>firingRunner.LoadDraftWeapon(firingWeapon.Id,reserveAmmo.Id,1));
+Reject(()=>firingRunner.RemoveDraftPurchasedGear(loadedState.GearId));
+Reject(()=>firingRunner.FireDraftWeapon(firingWeapon.Id,2));
+Assert(XNode.DeepEquals(beforeLoadReject,Xml(firingRunner)),"Rejected loading/firing operation partially changed data.");
+firingRunner.FireDraftWeapon(firingWeapon.Id,3);
+Assert(firingRunner.DraftLoadedAmmunition.Single().Rounds==35 && firingRunner.DraftPurchasedGear.Sum(g=>g.Quantity)==97 &&
+    firingRunner.DraftPurchasedGear.Sum(g=>g.Cost)==1164 && firingRunner.Nuyen==walletBeforeLoad,"Firing did not consume exactly three rounds and their refundable value.");
+using(var firingBuffer=new MemoryStream())
+{
+    firingRunner.SaveCompressed(firingBuffer);firingBuffer.Position=0;var reopenedFire=CharacterDocument.LoadCompressed(firingBuffer);
+    Assert(XNode.DeepEquals(Xml(firingRunner),Xml(reopenedFire)) && reopenedFire.DraftLoadedAmmunition.Single().Rounds==35 && reopenedFire.DraftWeapons().Single().AP=="-6",
+        "Loaded rounds, clip references or AP effects changed after reopening.");
+}
+Assert(CharacterSheet.SummaryHtml(firingRunner).Contains("AK-97: 35/38 rounds; Ammo: APDS"),"Printed summary omitted loaded rounds.");
+firingRunner.UnloadDraftWeapon(firingWeapon.Id);
+Assert(firingRunner.DraftLoadedAmmunition.Single().Rounds==0 && firingRunner.DraftWeapons().Single().AP=="-2" && firingRunner.DraftPurchasedGear.All(g=>g.LoadedInto.Length==0),
+    "Unloading did not preserve remaining rounds or remove the ammunition effect.");
+foreach(var stock in firingRunner.DraftPurchasedGear.ToArray())firingRunner.RemoveDraftPurchasedGear(stock.Id);
+firingRunner.RemoveDraftEquipment(firingWeapon.Id);
+Assert(firingRunner.Nuyen==firingStartCash-36,"Consumed APDS rounds were refunded after removing the remaining stocks and weapon.");
+foreach(var (ammoName,expectedDamage,expectedAP) in new[]{("Ammo: Gel Rounds","10S","-1"),("Ammo: Stick-n-Shock","8S(e)","-5"),
+    ("Ammo: Flechette Rounds","12P(f)","3"),("Ammo: Explosive Rounds","11P","-3")})
+{
+    var ammoTest=draft.Clone();equipmentRules.Purchase(ammoTest,ak.Id,true);var w=ammoTest.DraftEquipment.Single(w=>w.Name=="AK-97");
+    gearRules.Purchase(ammoTest,gearRules.Catalog.Single(g=>g.Name==ammoName).Id,10,"Assault Rifles");ammoTest.LoadDraftWeapon(w.Id,ammoTest.DraftPurchasedGear.Single().Id,10);
+    Assert(ammoTest.DraftWeapons().Single().Damage==expectedDamage && ammoTest.DraftWeapons().Single().AP==expectedAP,"Ammunition damage/AP modifier mismatch: "+ammoName);
+    ammoTest.FireDraftWeapon(w.Id,10);Assert(ammoTest.DraftLoadedAmmunition.Single().Rounds==0 && ammoTest.DraftPurchasedGear.Count==0,"Empty magazine left a dangling gear stack or clip.");
+    Reject(()=>ammoTest.FireDraftWeapon(w.Id,1));
+}
+var reloadTest=draft.Clone();equipmentRules.Purchase(reloadTest,ak.Id,true);var reloadWeapon=reloadTest.DraftEquipment.Single(w=>w.Name=="AK-97");
+gearRules.Purchase(reloadTest,regularAmmo.Id,100,"Heavy Pistols");var wrongStock=reloadTest.DraftPurchasedGear.Single();
+var beforeWrongAmmo=Xml(reloadTest);Reject(()=>reloadTest.LoadDraftWeapon(reloadWeapon.Id,wrongStock.Id,10));
+Assert(XNode.DeepEquals(beforeWrongAmmo,Xml(reloadTest)),"Wrong-category ammunition changed inventory.");
+gearRules.Purchase(reloadTest,regularAmmo.Id,100,"Assault Rifles");var rightStock=reloadTest.DraftPurchasedGear.Single(g=>g.Extra=="Assault Rifles");
+Reject(()=>reloadTest.LoadDraftWeapon(reloadWeapon.Id,rightStock.Id,39));reloadTest.LoadDraftWeapon(reloadWeapon.Id,rightStock.Id,5);
+var beforeOverfire=Xml(reloadTest);Reject(()=>reloadTest.FireDraftWeapon(reloadWeapon.Id,6));
+Assert(XNode.DeepEquals(beforeOverfire,Xml(reloadTest)),"Insufficient loaded rounds partially consumed ammunition.");
+reloadTest.EquipDraftItem(reloadWeapon.Id,false);Reject(()=>reloadTest.FireDraftWeapon(reloadWeapon.Id,1));reloadTest.EquipDraftItem(reloadWeapon.Id,true);
+equipmentRules.Purchase(reloadTest,ak.Id,true);var secondGun=reloadTest.DraftEquipment.Single(w=>w.Id!=reloadWeapon.Id);
+Reject(()=>reloadTest.LoadDraftWeapon(secondGun.Id,reloadTest.DraftLoadedAmmunition.Single(w=>w.WeaponId==reloadWeapon.Id).GearId,1));
+reloadTest.RemoveDraftEquipment(reloadWeapon.Id);
+Assert(reloadTest.DraftPurchasedGear.Sum(g=>g.Quantity)==200 && reloadTest.DraftPurchasedGear.All(g=>g.LoadedInto.Length==0),"Removing a loaded weapon lost or duplicated its ammunition.");
+Console.WriteLine("PASS: ammunition category/capacity, separate loaded stacks, desktop clip references, firing consumption, damage/AP changes, no double loading/refunding, unloading and save/reopen.");
+var limitedModeEntry=equipmentRules.Catalog.First(e=>e.Kind=="weapon" && gearRules.AmmoCategories.Contains(e.Category) &&
+    (e.Details.EndsWith("; SS",StringComparison.Ordinal) || e.Details.EndsWith("; SA",StringComparison.Ordinal)));
+var limitedModeRunner=draft.Clone();equipmentRules.Purchase(limitedModeRunner,limitedModeEntry.Id,true);var limitedWeapon=limitedModeRunner.DraftEquipment.Single();
+gearRules.Purchase(limitedModeRunner,regularAmmo.Id,20,limitedModeEntry.Category);
+limitedModeRunner.LoadDraftWeapon(limitedWeapon.Id,limitedModeRunner.DraftPurchasedGear.Single().Id,Math.Min(20,limitedModeRunner.DraftLoadedAmmunition.Single().Capacity));
+var beforeInvalidBurst=Xml(limitedModeRunner);Reject(()=>limitedModeRunner.FireDraftWeapon(limitedWeapon.Id,3));
+Assert(XNode.DeepEquals(beforeInvalidBurst,Xml(limitedModeRunner)),"Burst fire on a semi-auto/single-shot weapon changed the loaded rounds.");
