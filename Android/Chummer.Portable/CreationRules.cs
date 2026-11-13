@@ -178,9 +178,13 @@ public sealed partial class CharacterDocument
         if (document.Root!.Element("improvements")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
             document.Root.Element("qualities")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
             document.Root.Element("gears")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
-            new[] { "powers", "weapons", "armors", "cyberwares" }.Any(collection => document.Root.Element(collection)?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true) ||
+            new[] { "powers", "weapons", "armors", "cyberwares", "lifestyles" }.Any(collection => document.Root.Element(collection)?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true) ||
             new[] { "biowares", "vehicles" }.Any(collection => document.Root.Element(collection)?.HasElements == true))
             throw new InvalidOperationException("This draft has effects that the creation editor cannot yet calculate.");
+        if (LifestyleNodes.Any(e => (string?)e.Element("type") != "Standard" || (string?)e.Element("increment") != "Month" ||
+            (string?)e.Element("trustfund") == "True" || e.Element("lifestylequalities")?.HasElements == true ||
+            ((decimal?)e.Element("percentage") ?? 100) != 100 || new[] { "area", "comforts", "security" }.Any(n => ((int?)e.Element(n) ?? 0) != 0)))
+            throw new InvalidOperationException("This lifestyle has options that need additional rule support.");
     }
     private IEnumerable<XElement> AttributeNodes => document.Root!.Element("attributes")!.Elements("attribute");
     private static int AttributeInt(XElement attribute, string field) => (int?)attribute.Element(field) ?? 0;

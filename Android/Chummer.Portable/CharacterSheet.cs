@@ -79,6 +79,13 @@ public static class CharacterSheet
                 .Append("</p><p>").Append(Encode($"Natural armor: {character.DraftRacialBonus("Armor")}; reach bonus: {character.DraftRacialBonus("Reach")}; lifestyle cost adjustment: {character.DraftRacialBonus("LifestyleCost")}%"))
                 .Append("</p>");
             var knowledge = character.DraftKnowledgeSkills;
+            if (character.DraftLifestyles.Count > 0)
+            {
+                html.Append("<h2>Lifestyles</h2><ul>");
+                foreach (var lifestyle in character.DraftLifestyles)
+                    html.Append("<li>").Append(Encode($"{lifestyle.Name} — {lifestyle.Base}; {lifestyle.Months} months; {lifestyle.MonthlyCost:N2} Nuyen/month; prepaid {lifestyle.PurchaseCost:N2}; {lifestyle.City}")).Append("</li>");
+                html.Append("</ul>");
+            }
             if (knowledge.Count > 0)
             {
                 html.Append("<h2>Knowledge and languages</h2><ul>");

@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.14 (development checkpoint)
+Chummer standalone Android port — preview 0.15 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -48,6 +48,8 @@ Implemented in this preview:
 - Desktop Standard/Large/Really Large roll methods, success thresholds and miss rerolls with retained hits and desktop glitch/bubble handling.
 - Initiative order, pass advancement and persistence; ties use entry order for manual resolution.
 - Standard draft contacts with Charisma budgets and per-contact caps.
+- Six standard core lifestyles, prepaid months, roommates and shared costs, city labels, purchase/edit/refunds and printable summaries.
+- Metatype/dependent lifestyle costs and retroactive prepaid cost adjustments when qualities change; unaffordable changes are rejected atomically.
 - Android printing / Save as PDF for a portable character summary.
 - Searchable offline catalog browsing across bundled upstream data files.
 - Characters/Create/Play/Library navigation and an in-app license view.
@@ -60,7 +62,7 @@ Still pending for desktop feature parity:
 - Burnout to zero, combined Improved Reflexes/initiative-implant interactions, cyberlimbs, modular/nested implants, remaining augmentations, Essence holes and additional grades.
 - Active spell effects, wireless bonuses, weapon firing workflows, carrying-weight penalties and equipment house rules.
 - Full calculations, skill/attribute advancement and derived effects for imported characters.
-- Imported-contact editing, lifestyle, vehicles/drones and detailed combat/Matrix/magic workflows.
+- Imported-contact editing, advanced lifestyles, vehicles/drones and detailed combat/Matrix/magic workflows.
 - Custom-data merging, house-rule settings, sourcebook selection and translations.
 - Original desktop sheet templates and remaining import/export utilities.
 - Extended-test workflows, full initiative tie-breaking and remaining desktop tools.
@@ -93,6 +95,8 @@ Validation:
 - API 34 emulator: INT increased from 1 to 2 for 10 Karma; priority attribute points stayed at 18; INT 2 / Karma 1 persisted after force-stop/reopen.
 - Standard Karma/Nuyen exchange limits, idempotence, spent-funds rejection, refund and compressed-save checks pass.
 - API 34 emulator: exchanging 1 Karma added 2,000 Nuyen; the exchange and its reversal both retained correct balances after restart.
+- Six standard lifestyles, roommate sharing, metatype/dependent costs, quality repricing, purchase/edit/refunds, summaries and compressed persistence checks pass.
+- API 34 emulator: shared Low lifestyle for two months charged 2,200 Nuyen; dependent repriced it to 2,420; restart retained the new cost/balance; editing to one month refunded 1,210; removal restored 140,000 Nuyen and stayed removed after restart.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:

@@ -1024,3 +1024,57 @@ var poorResourceBefore = Xml(resourceRunner);
 Reject(() => resourceRunner.SetDraftResourceKarma(1));
 Assert(XNode.DeepEquals(poorResourceBefore, Xml(resourceRunner)), "Resource conversion cannot overspend Karma already allocated elsewhere.");
 Console.WriteLine("PASS: standard creation Karma/Nuyen conversion, maximums, idempotence, spent-funds rejection, refunds and compressed persistence.");
+
+using var lifestyleData = File.OpenRead(Path.Combine(root, "Chummer", "data", "lifestyles.xml"));
+var lifestyleRules = new LifestyleRules(lifestyleData);
+string LifestyleId(string name) => lifestyleRules.Catalog.Single(l => l.Name == name).Id;
+var lifestyleRunner = creation.CreateHumanDraft("Lifestyle QA", "", priorities);
+Assert(lifestyleRules.Catalog.Count == 6 && lifestyleRules.Quote(lifestyleRunner, LifestyleId("Low")) == 2000, "Six core lifestyles or base prices mismatch.");
+lifestyleRules.Set(lifestyleRunner, null, LifestyleId("Low"), "Home <safe>", 2, 1, true, "Seattle");
+var home = lifestyleRunner.DraftLifestyles.Single();
+Assert(home.MonthlyCost == 1100 && home.PurchaseCost == 2200 && lifestyleRunner.Nuyen == 137800,
+    "Roommate surcharge must apply before splitting and charging prepaid months.");
+Assert(CharacterSheet.SummaryHtml(lifestyleRunner).Contains("Home &lt;safe&gt;"), "Lifestyle summary must escape names.");
+var lifestyleBefore = Xml(lifestyleRunner);
+Reject(() => lifestyleRules.Set(lifestyleRunner, home.Id, LifestyleId("Luxury"), "Too expensive", 2));
+Reject(() => lifestyleRules.Set(lifestyleRunner, home.Id, LifestyleId("Low"), "Home", 0));
+Reject(() => lifestyleRules.Set(lifestyleRunner, home.Id, LifestyleId("Low"), "Home", 1, -1));
+Assert(XNode.DeepEquals(lifestyleBefore, Xml(lifestyleRunner)), "Invalid lifestyle edits must preserve purchase and wallet.");
+using (var lifestyleSave = new MemoryStream())
+{
+    lifestyleRunner.SaveCompressed(lifestyleSave); lifestyleSave.Position = 0;
+    var reopenedHome = CharacterDocument.LoadCompressed(lifestyleSave);
+    Assert(reopenedHome.DraftLifestyles.Single() == home && reopenedHome.Nuyen == 137800, "Lifestyle schema/pricing must persist through compressed saves.");
+}
+qualityRules.Add(lifestyleRunner, QualityId("Dependent (Nuisance)"));
+Assert(lifestyleRunner.DraftLifestyles.Single().MonthlyCost == 1210 && lifestyleRunner.Nuyen == 137580 && lifestyleRunner.Karma == 28,
+    "Adding dependents must reprice existing prepaid lifestyles once.");
+qualityRules.Add(lifestyleRunner, QualityId("Catlike"));
+Assert(lifestyleRunner.Nuyen == 137580, "Unrelated qualities must not charge lifestyles twice.");
+qualityRules.Remove(lifestyleRunner, lifestyleRunner.SelectedQualities.Single(q => q.Name == "Dependent (Nuisance)").Id);
+Assert(lifestyleRunner.Nuyen == 137800, "Removing dependents must refund the creation cost difference.");
+lifestyleRules.Set(lifestyleRunner, home.Id, LifestyleId("Medium"), "New home", 1, city: "Denver");
+Assert(lifestyleRunner.DraftLifestyles.Single().Id == home.Id && lifestyleRunner.Nuyen == 135000,
+    "Lifestyle editing must preserve its identity and refund the old prepaid amount before charging.");
+lifestyleRules.Remove(lifestyleRunner, home.Id);
+Assert(lifestyleRunner.Nuyen == 140000 && lifestyleRunner.DraftLifestyles.Count == 0, "Lifestyle removal must refund its current prepaid cost.");
+var trollHome = creation.CreateMundaneDraft("Troll lifestyle", "", allMetatypePriorities, "Troll");
+var dwarfHome = creation.CreateMundaneDraft("Dwarf lifestyle", "", allMetatypePriorities, "Dwarf");
+Assert(lifestyleRules.Quote(trollHome, LifestyleId("Low")) == 4000 && lifestyleRules.Quote(dwarfHome, LifestyleId("Low")) == 2400,
+    "Metatype lifestyle costs must apply.");
+qualityRules.Add(trollHome, QualityId("Dependent (Nuisance)"));
+Assert(lifestyleRules.Quote(trollHome, LifestyleId("Low"), 1, true) == 2420,
+    "Dependent and metatype costs must multiply separately after roommate sharing.");
+var brokeHome = creation.CreateHumanDraft("Lifestyle atomic QA", "", priorities);
+lifestyleRules.Set(brokeHome, null, LifestyleId("Low"), "Long lease", 70);
+var brokeHomeBefore = Xml(brokeHome);
+Reject(() => qualityRules.Add(brokeHome, QualityId("Dependent (Nuisance)")));
+Assert(XNode.DeepEquals(brokeHomeBefore, Xml(brokeHome)) && brokeHome.Karma == 25,
+    "Unaffordable lifestyle repricing must reject the quality atomically, including its Karma reward.");
+var advancedHomeXml = Xml(brokeHome); advancedHomeXml.Root!.Element("lifestyles")!.Element("lifestyle")!.SetElementValue("area", 1);
+using (var unsupportedHome = new MemoryStream(Encoding.UTF8.GetBytes(advancedHomeXml.ToString())))
+{
+    var advancedHome = CharacterDocument.Load(unsupportedHome);
+    Reject(() => _ = advancedHome.DraftAttributes);
+}
+Console.WriteLine("PASS: six standard lifestyles, prepaid purchases/edit/refunds, roommate sharing, metatype/dependent pricing, atomic quality repricing, summaries and compressed persistence.");

@@ -79,11 +79,11 @@ public sealed class QualityRules
             new XElement("source", "SR5"), new XElement("page", entry.Page), new XElement("androidbuiltin", "True"),
             q.Element("bonus") is { } bonus ? new XElement(bonus) : new XElement("bonus"), new XElement("notes", ""));
         updated.AddSelectedQuality(quality, Effects(q.Element("bonus"), id,extra), entry.Karma);
-        updated.RefreshDraftEssenceEffects();Validate(updated);updated.ValidateAugmentationEffects(); character.ReplaceDraftWith(updated);
+        updated.RefreshDraftEssenceEffects();updated.RepriceDraftLifestyles();Validate(updated);updated.ValidateAugmentationEffects(); character.ReplaceDraftWith(updated);
     }
     public void Remove(CharacterDocument character, string id)
     {
-        var updated = character.Clone(); updated.RemoveSelectedQuality(id);updated.RefreshDraftEssenceEffects(); Validate(updated);updated.ValidateAugmentationEffects(); character.ReplaceDraftWith(updated);
+        var updated = character.Clone(); updated.RemoveSelectedQuality(id);updated.RefreshDraftEssenceEffects();updated.RepriceDraftLifestyles(); Validate(updated);updated.ValidateAugmentationEffects(); character.ReplaceDraftWith(updated);
     }
     private static XElement[] Effects(XElement? bonus, string id,string extra)
     {
