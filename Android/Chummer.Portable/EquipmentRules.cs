@@ -8,7 +8,7 @@ namespace Chummer.Portable;
 
 public sealed record EquipmentEntry(string Id, string Name, string Kind, string Category, decimal Cost, string Availability, string Details, string Page);
 public sealed record OwnedEquipment(string Id, string Name, string Kind, bool Equipped, decimal PurchaseCost);
-public sealed record WeaponStats(string Name, string Skill, string Damage, int Accuracy, string AP, string Mode, string Ammo, int Reach);
+public sealed record WeaponStats(string Name, string Skill, string Damage, int Accuracy, string AP, string Mode, string Ammo, int Reach,int AccessoryRecoil=0,int DeployedAccessoryRecoil=0);
 
 /// <summary>Fixed-price core armor and weapons without bundled accessories, modifications or selected effects.</summary>
 public sealed class EquipmentRules
@@ -88,6 +88,7 @@ public sealed partial class CharacterDocument
     {
         RequireDraft(); var item = EquipmentNodes.SingleOrDefault(e => (string?)e.Element("guid") == id) ?? throw new ArgumentException("Unknown equipment item.");
         var refund = (decimal?)item.Element("androidpurchasecost") ?? 0;
+        refund+=item.Element("accessories")?.Elements("accessory").Sum(a=>(decimal?)a.Element("androidpurchasecost")??0)??0;
         item.Remove(); SetField("nuyen", (Nuyen + refund).ToString(CultureInfo.InvariantCulture));
     }
     public IReadOnlyList<WeaponStats> DraftWeapons()
@@ -101,8 +102,9 @@ public sealed partial class CharacterDocument
             value += (int)DraftEffect("WeaponCategoryDV", category);
             var accuracy = (string?)e.Element("accuracy") == "Physical" ? stats.PhysicalLimit : (int)e.Element("accuracy")!;
             accuracy += (int)DraftEffect("WeaponSkillAccuracy", skill);
+            accuracy+=AccessoryBonus(e,"accuracy");
             return new WeaponStats(e.Element("name")!.Value, skill, value + damage.Groups[3].Value, accuracy, (string?)e.Element("ap") ?? "0",
-                (string?)e.Element("mode") ?? "", (string?)e.Element("ammo") ?? "", ((int?)e.Element("reach") ?? 0) + (int)DraftEffect("Reach"));
+                (string?)e.Element("mode") ?? "", (string?)e.Element("ammo") ?? "", ((int?)e.Element("reach") ?? 0) + (int)DraftEffect("Reach"),AccessoryBonus(e,"rc"),AccessoryBonus(e,"rc",true));
         }).ToArray();
     }
 }

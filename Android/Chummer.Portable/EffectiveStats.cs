@@ -27,7 +27,7 @@ public sealed partial class CharacterDocument
         int Third(int n) => (n + 2) / 3;
         return new EffectiveStatistics(a, Third(2*a["STR"] + a["BOD"] + a["REA"]) + (int)DraftEffect("PhysicalLimit", "Physical"),
             Third(2*a["LOG"] + a["INT"] + a["WIL"]) + (int)DraftEffect("MentalLimit", "Mental"),
-            Third(2*a["CHA"] + a["WIL"] + 6) + (int)DraftEffect("SocialLimit", "Social"),
+            Third(2*a["CHA"] + a["WIL"] + (int)decimal.Ceiling(DraftEssence)) + (int)DraftEffect("SocialLimit", "Social"),
             Math.Max(0, a["REA"] + a["INT"] - wounds), 1 + (int)DraftEffect("InitiativeDice"),
             8 + (a["BOD"] + 1)/2, 8 + (a["WIL"] + 1)/2, armor, armorPenalty,
             Math.Max(0, a["REA"] + a["INT"] + (int)DraftEffect("Dodge") - wounds), a["BOD"] + armor + (int)DraftEffect("DamageResistance"), wounds);
@@ -45,14 +45,14 @@ public sealed partial class CharacterDocument
     {
         var s = EffectiveStats();
         var physical = document.Root!.Element("improvements")!.Elements().Any(e => (string?)e.Element("improvementttype") == "UnarmedDVPhysical" && (int?)e.Element("enabled") == 1);
-        return new WeaponStats("Unarmed", "Unarmed Combat", (s.Attributes["STR"] + (int)DraftEffect("WeaponCategoryDV", "Unarmed Combat")) + (physical ? "P" : "S"),
+        return new WeaponStats("Unarmed", "Unarmed Combat", (s.Attributes["STR"] + (int)DraftEffect("WeaponCategoryDV", "Unarmed Combat") + (int)DraftEffect("UnarmedDV")) + (physical ? "P" : "S"),
             s.PhysicalLimit + (int)DraftEffect("WeaponSkillAccuracy", "Unarmed Combat"), "0", "", "", (int)DraftEffect("Reach"));
     }
     public IReadOnlyList<string> DraftEffectDescriptions()
     {
         RequireDraft();
         var selectedSources = SelectedQualities.Select(q => q.Id).ToHashSet();
-        return document.Root!.Element("improvements")!.Elements().Where(e => ((string?)e.Element("improvementsource") == "Power" ||
+        return document.Root!.Element("improvements")!.Elements().Where(e => ((string?)e.Element("improvementsource") is "Power" or "Cyberware" or "Bioware" ||
             (string?)e.Element("improvementsource") == "Quality" && selectedSources.Contains((string?)e.Element("sourcename") ?? "")) &&
             (string?)e.Element("improvementttype") != "DisableQuality").Select(e => {
                 var type = e.Element("improvementttype")!.Value; var name = e.Element("improvedname")!.Value;

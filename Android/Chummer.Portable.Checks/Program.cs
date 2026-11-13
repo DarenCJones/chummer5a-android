@@ -556,3 +556,93 @@ using (var optionsBuffer = new MemoryStream())
 Assert(CharacterSheet.SummaryHtml(specialist).Contains("Semi-Automatics (+2 only when applicable)") && CharacterSheet.SummaryHtml(specialist).Contains("Catlike"),
     "Character summary omitted selected qualities/specializations.");
 Console.WriteLine($"PASS: active skill specializations, point/Karma costs and refunds; {qualityRules.Catalog.Count} supported quality templates, requirements/conflicts, limits, conditions, language grants and effect removal.");
+using var cyberData=File.OpenRead(Path.Combine(root,"Chummer","data","cyberware.xml"));
+using var bioData=File.OpenRead(Path.Combine(root,"Chummer","data","bioware.xml"));
+var augmentationRules=new AugmentationRules(cyberData,bioData);
+string ImplantId(string name)=>augmentationRules.Catalog.Single(a=>a.Name==name).Id;
+var wiredQuote=augmentationRules.Quote(ImplantId("Wired Reflexes"),1,"Alphaware");
+Assert(wiredQuote.Cost==46800 && wiredQuote.Essence==1.6m && wiredQuote.Availability==10,"Alphaware cost/Essence/availability multipliers mismatch.");
+var usedBoneQuote=augmentationRules.Quote(ImplantId("Bone Lacing (Titanium)"),0,"Used");
+Assert(usedBoneQuote.Cost==22500 && usedBoneQuote.Essence==1.88m && usedBoneQuote.Availability==12,"Used grade multipliers/rounding mismatch.");
+Reject(()=>augmentationRules.Quote(ImplantId("Synaptic Booster"),1,"Used"));
+Reject(()=>augmentationRules.Quote(ImplantId("Wired Reflexes"),2,"Alphaware"));
+Reject(()=>augmentationRules.Quote(ImplantId("Muscle Toner"),5,"Standard"));
+var augmentedRunner=draft.Clone();var cashBeforeImplants=augmentedRunner.Nuyen;
+augmentationRules.Purchase(augmentedRunner,ImplantId("Wired Reflexes"),1,"Alphaware");
+augmentationRules.Purchase(augmentedRunner,ImplantId("Muscle Toner"),1,"Standard");
+augmentationRules.Purchase(augmentedRunner,ImplantId("Dermal Plating"),1,"Standard");
+Assert(augmentedRunner.DraftEssence==3.7m && augmentedRunner.Nuyen==cashBeforeImplants-81800 &&
+    augmentedRunner.EffectiveStats().Attributes["AGI"]==5 && augmentedRunner.EffectiveStats().Attributes["REA"]==5 &&
+    augmentedRunner.EffectiveStats().InitiativeDice==2 && augmentedRunner.EffectiveStats().Armor==1,"Implant wallet, Essence or permanent effects mismatch.");
+var implantBeforeReject=Xml(augmentedRunner);
+Reject(()=>augmentationRules.Purchase(augmentedRunner,ImplantId("Orthoskin"),1,"Standard"));
+Reject(()=>augmentationRules.Purchase(augmentedRunner,ImplantId("Wired Reflexes"),1,"Standard"));
+Assert(XNode.DeepEquals(implantBeforeReject,Xml(augmentedRunner)),"Rejected implant changed inventory, Essence or wallet.");
+var wiredInstalled=augmentedRunner.InstalledAugmentations.Single(a=>a.Name=="Wired Reflexes");
+augmentationRules.Remove(augmentedRunner,wiredInstalled.Id);
+Assert(augmentedRunner.DraftEssence==5.3m && augmentedRunner.EffectiveStats().InitiativeDice==1 && augmentedRunner.EffectiveStats().Attributes["REA"]==4 &&
+    augmentedRunner.Nuyen==cashBeforeImplants-35000,"Removing implant did not reverse cost, Essence and effects.");
+var richPriorities=new PriorityChoice("Priority","D","B","C","A");
+var heavilyAugmented=creation.CreateDraft("Augmented","",richPriorities,"Human");
+augmentationRules.Purchase(heavilyAugmented,ImplantId("Wired Reflexes"),2,"Standard");
+augmentationRules.Purchase(heavilyAugmented,ImplantId("Muscle Replacement"),2,"Standard");
+Assert(heavilyAugmented.DraftEssence==1 && heavilyAugmented.EffectiveStats().SocialLimit==2,"Essence reduction did not affect the social limit.");
+var beforeEssenceReject=Xml(heavilyAugmented);
+Reject(()=>augmentationRules.Purchase(heavilyAugmented,ImplantId("Bone Lacing (Titanium)"),0,"Used"));
+Assert(XNode.DeepEquals(beforeEssenceReject,Xml(heavilyAugmented)),"Essence overspend was not atomic.");
+augmentationRules.Purchase(heavilyAugmented,ImplantId("Muscle Toner"),1,"Standard");
+Assert(heavilyAugmented.EffectiveStats().Attributes["AGI"]==3,"Muscle replacement and toner were incorrectly added instead of using the unique effect group.");
+var reactions=creation.CreateDraft("Reaction test","",richPriorities,"Human");
+augmentationRules.Purchase(reactions,ImplantId("Wired Reflexes"),1,"Standard");
+augmentationRules.Purchase(reactions,ImplantId("Reaction Enhancers"),2,"Standard");
+Assert(reactions.EffectiveStats().Attributes["REA"]==3 && reactions.EffectiveStats().InitiativeDice==2,"Non-wireless reaction enhancement precedence mismatch.");
+using(var implantBuffer=new MemoryStream())
+{
+    augmentedRunner.SaveCompressed(implantBuffer);implantBuffer.Position=0;var reopenedImplants=CharacterDocument.LoadCompressed(implantBuffer);
+    Assert(XNode.DeepEquals(Xml(augmentedRunner),Xml(reopenedImplants)) && reopenedImplants.DraftEssence==5.3m && reopenedImplants.InstalledAugmentations.Any(a=>a.Kind=="Bioware"),"Implant save/reopen lost source kind, Essence or effects.");
+}
+Reject(()=>augmentationRules.Purchase(adept.Clone(),ImplantId("Dermal Plating"),1,"Standard"));
+Console.WriteLine($"PASS: {augmentationRules.Catalog.Count} core implant templates, grades, cost/Essence/availability, conflicts, non-stacking effects, social limit and atomic removal/refunds.");
+using var gearInventoryData=File.OpenRead(Path.Combine(root,"Chummer","data","gear.xml"));
+using var gearWeaponData=File.OpenRead(Path.Combine(root,"Chummer","data","weapons.xml"));
+var gearRules=new GearRules(gearInventoryData,gearWeaponData);
+var regularAmmo=gearRules.Catalog.Single(g=>g.Name=="Ammo: Regular Ammo");
+var apdsAmmo=gearRules.Catalog.Single(g=>g.Name=="Ammo: APDS");
+Assert(gearRules.Quote(regularAmmo.Id,100)==200 && gearRules.Quote(regularAmmo.Id,1)==2 && gearRules.Quote(apdsAmmo.Id,10)==120,"Ammunition pack pricing mismatch.");
+var gearRunner=draft.Clone();var beforeGearCash=gearRunner.Nuyen;
+gearRules.Purchase(gearRunner,regularAmmo.Id,100,"Heavy Pistols");gearRules.Purchase(gearRunner,apdsAmmo.Id,10,"Assault Rifles");
+Assert(gearRunner.Nuyen==beforeGearCash-320 && gearRunner.DraftPurchasedGear.Sum(g=>g.Quantity)==110 &&
+    Xml(gearRunner).Descendants("gear").Any(g=>(string?)g.Element("name")=="Ammo: APDS" && (string?)g.Element("weaponbonus")?.Element("ap")=="-4"),"Ammo purchase lost price, quantity, category or damage/AP metadata.");
+var beforeGearReject=Xml(gearRunner);
+Reject(()=>gearRules.Purchase(gearRunner,regularAmmo.Id,1,"invalid-category"));Reject(()=>gearRules.Purchase(gearRunner,regularAmmo.Id,1000000,"Heavy Pistols"));
+Assert(XNode.DeepEquals(beforeGearReject,Xml(gearRunner)),"Rejected gear purchase changed the wallet or inventory.");
+gearRunner.RemoveDraftPurchasedGear(gearRunner.DraftPurchasedGear.Single(g=>g.Name==regularAmmo.Name).Id);
+Assert(gearRunner.Nuyen==beforeGearCash-120 && gearRunner.DraftPurchasedGear.Single().Quantity==10,"Gear stack removal/refund mismatch.");
+using(var gearBuffer=new MemoryStream())
+{
+    gearRunner.SaveCompressed(gearBuffer);gearBuffer.Position=0;var reopenedGear=CharacterDocument.LoadCompressed(gearBuffer);
+    Assert(XNode.DeepEquals(Xml(gearRunner),Xml(reopenedGear)) && reopenedGear.DraftPurchasedGear.Single().Extra=="Assault Rifles","Ammo/gear quantities or category changed after reopening.");
+}
+Assert(System.Net.WebUtility.HtmlDecode(CharacterSheet.SummaryHtml(gearRunner)).Contains("Ammo: APDS Assault Rifles × 10"),"Printed summary omitted ammunition quantities.");
+Console.WriteLine($"PASS: {gearRules.Catalog.Count} supported gear/ammo inventory entries, pack pricing, quantities, categories, metadata preservation and atomic refunds.");
+using var accessoryData=File.OpenRead(Path.Combine(root,"Chummer","data","weapons.xml"));var accessoryRules=new AccessoryRules(accessoryData);
+string AccessoryId(string name)=>accessoryRules.Catalog.Single(a=>a.Name==name).Id;
+var gunRunner=draft.Clone();var gunCash=gunRunner.Nuyen;var ak=equipmentRules.Catalog.Single(w=>w.Name=="AK-97");
+equipmentRules.Purchase(gunRunner,ak.Id,true);var gun=gunRunner.DraftEquipment.Single(w=>w.Name=="AK-97");
+accessoryRules.Attach(gunRunner,gun.Id,AccessoryId("Laser Sight"),"Top");accessoryRules.Attach(gunRunner,gun.Id,AccessoryId("Bipod"),"Under");
+Assert(gunRunner.DraftWeapons().Single().Accuracy==6 && gunRunner.DraftWeapons().Single().AccessoryRecoil==0 && gunRunner.DraftWeapons().Single().DeployedAccessoryRecoil==2 &&
+    gunRunner.Nuyen==gunCash-1275,"Accessory accuracy, deployed recoil or purchase cost mismatch.");
+var beforeMountReject=Xml(gunRunner);Reject(()=>accessoryRules.Attach(gunRunner,gun.Id,AccessoryId("Tripod"),"Under"));
+Reject(()=>accessoryRules.Attach(gunRunner,gun.Id,AccessoryId("Laser Sight"),"Side"));
+Assert(XNode.DeepEquals(beforeMountReject,Xml(gunRunner)),"Invalid mount purchase changed weapon or cash.");
+var sight=gunRunner.DraftAccessories.Single(a=>a.Name=="Laser Sight");gunRunner.EquipDraftAccessory(gun.Id,sight.Id,false);
+Assert(gunRunner.DraftWeapons().Single().Accuracy==5,"Disabled accessory still affected accuracy.");gunRunner.EquipDraftAccessory(gun.Id,sight.Id,true);
+using(var accessoryBuffer=new MemoryStream())
+{
+    gunRunner.SaveCompressed(accessoryBuffer);accessoryBuffer.Position=0;var reopenedAccessories=CharacterDocument.LoadCompressed(accessoryBuffer);
+    Assert(XNode.DeepEquals(Xml(gunRunner),Xml(reopenedAccessories)) && reopenedAccessories.DraftWeapons().Single().Accuracy==6 && reopenedAccessories.DraftAccessories.Count==2,"Accessory state or effects changed after reopening.");
+}
+var parentRemoval=gunRunner.Clone();parentRemoval.RemoveDraftEquipment(gun.Id);
+Assert(parentRemoval.Nuyen==gunCash && parentRemoval.DraftAccessories.Count==0,"Removing a weapon did not refund its purchased accessories.");
+gunRunner.RemoveDraftAccessory(gun.Id,sight.Id);Assert(gunRunner.Nuyen==gunCash-1150 && gunRunner.DraftWeapons().Single().Accuracy==5,"Accessory removal/refund did not reverse effects.");
+Console.WriteLine("PASS: weapon accessory mounts, costs, accuracy, deployed recoil, disabled effects, parent/child refunds and compressed round trips.");

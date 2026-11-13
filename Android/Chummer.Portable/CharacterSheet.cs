@@ -19,6 +19,16 @@ public static class CharacterSheet
         {
             var stats = character.DraftStats();
             var effective = character.EffectiveStats();
+            html.Append("<h2>Implants</h2><p>").Append(Encode($"Essence remaining: {character.DraftEssence:0.00}")).Append("</p><ul>");
+            foreach(var implant in character.InstalledAugmentations)
+                html.Append("<li>").Append(Encode($"{implant.Name} {implant.Rating} — {implant.Grade}; {implant.Essence:0.00} Essence")).Append("</li>");
+            html.Append("</ul>");
+            html.Append("<h2>Purchased gear and ammunition</h2><ul>");
+            foreach(var gear in character.DraftPurchasedGear)html.Append("<li>").Append(Encode($"{gear.Name} {gear.Extra} × {gear.Quantity}")).Append("</li>");
+            html.Append("</ul>");
+            html.Append("<h2>Weapon accessories</h2><ul>");
+            foreach(var accessory in character.DraftAccessories)html.Append("<li>").Append(Encode($"{accessory.Weapon}: {accessory.Name} ({accessory.Mount}); {(accessory.Equipped?"Enabled":"Disabled")}")).Append("</li>");
+            html.Append("</ul>");
             html.Append("<h2>Selected qualities</h2><p>").Append(Encode($"Positive: {character.PositiveQualityKarma}/25 Karma; negative: {character.NegativeQualityKarma}/25 Karma"))
                 .Append("</p><ul>");
             foreach (var quality in character.SelectedQualities)
@@ -26,7 +36,7 @@ public static class CharacterSheet
             html.Append("</ul><h2>Active skill specializations</h2><ul>");
             foreach (var spec in character.DraftSpecializations)
                 html.Append("<li>").Append(Encode($"{spec.Skill}: {spec.Name} (+2 only when applicable)")).Append("</li>");
-            html.Append("</ul><h2>Power and quality effects</h2><ul>");
+            html.Append("</ul><h2>Permanent effect modifiers</h2><ul>");
             foreach (var effect in character.DraftEffectDescriptions()) html.Append("<li>").Append(Encode(effect)).Append("</li>");
             html.Append("</ul>");
             html.Append("<h2>Calculated permanent effects</h2><p>").Append(Encode(
@@ -45,7 +55,7 @@ public static class CharacterSheet
             }
             html.Append("<h2>Weapon statistics</h2><ul>");
             foreach (var weapon in character.DraftWeapons().Prepend(character.DraftUnarmedAttack()))
-                html.Append("<li>").Append(Encode($"{weapon.Name}: {weapon.Damage}; accuracy {weapon.Accuracy}; AP {weapon.AP}; reach {weapon.Reach}")).Append("</li>");
+                html.Append("<li>").Append(Encode($"{weapon.Name}: {weapon.Damage}; accuracy {weapon.Accuracy}; AP {weapon.AP}; reach {weapon.Reach}; attachment RC bonus {weapon.AccessoryRecoil} / {weapon.DeployedAccessoryRecoil} when deployed")).Append("</li>");
             html.Append("</ul>");
             if (character.DraftEquipment.Count > 0)
             {

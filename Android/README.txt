@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.6 (development checkpoint)
+Chummer standalone Android port — preview 0.7 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -27,6 +27,10 @@ Implemented in this preview:
 - Supported quality effects on trained skill pools, limits, damage resistance, wound thresholds and native-language allowances; conditional effects are shown separately.
 - One active skill specialization per skill during creation, costing 1 skill point or 7 Karma, with refunds and +2 situational pools.
 - Character-linked skill rolls with optional specialization and applicable conditional skill bonuses; untrained defaulting follows the catalog flags and standard -1 penalty.
+- 16 core cyberware/bioware templates for mundane drafts, with Standard/Used/Alphaware prices, Essence costs, creation availability and grade exclusions.
+- Implant conflict checks, unique-effect non-stacking, Essence-based social limits and creation removal/refunds.
+- 101 supported fixed-price unrated gear/ammunition inventory entries, quantity/pack pricing, weapon categories and preserved ammunition bonus metadata.
+- Laser Sight/Bipod/Tripod weapon accessories, compatible unoccupied mounts, enabled effects, deployed recoil bonuses and parent/child refunds.
 - Draft attribute, individual active skill, skill group, knowledge and language allocation.
 - Standard draft point budgets, natural maxima and one-free-native-language validation.
 - Unaugmented core metatype draft limits, initiative and condition monitor calculations.
@@ -42,7 +46,8 @@ Still pending for desktop feature parity:
 - Metavariants, other metatypes, Karma/Life Module creation and final creation validation.
 - Adept Way discounts, initiation, activated/situational power tests, summoning/binding, sprites and detailed magic/Matrix play.
 - Remaining quality types (including mentor spirits, Aptitude and exceptional attributes), knowledge specializations and strict-group house rules.
-- Full equipment catalogs, ammunition, bundled accessories, modifications, electronics and augmentations.
+- Full equipment catalogs, ammunition loading/firing, remaining/bundled accessories, modifications and active electronics.
+- Magical/technomancer implant Essence effects, cyberlimbs, modular/nested implants, remaining augmentations, Essence holes and additional grades.
 - Active spell effects, wireless bonuses, weapon firing workflows, carrying-weight penalties and equipment house rules.
 - Full calculations, skill/attribute advancement and derived effects for imported characters.
 - Imported-contact editing, lifestyle, vehicles/drones and detailed combat/Matrix/magic workflows.
@@ -67,6 +72,7 @@ Validation:
 - Equipment wallet atomicity, equipped effects, armor stacking caps/penalties and melee damage updates pass.
 - Quality costs/limits, bidirectional conflicts, Bilingual removal safety, conditional bonuses and specialization cost/refund checks pass.
 - Miss rerolls, preserved/new glitches, retained hits, exploding/cinematic/alternative methods and success-threshold checks pass.
+- Implant grades/Essence/conflicts/non-stacking, gear/ammo pricing/quantities and accessory mount/refund/recoil checks pass.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:
@@ -86,4 +92,5 @@ Android runtime checks on the API 34 emulator:
 - Selected quality and active specialization workflows/persistence are checked separately from desktop parity; see PARITY.txt for outstanding areas.
 - Catlike selection, Pistols specialization point spending and their records/pools survive force-stop/relaunch on the emulator.
 - Dice miss reroll retained hits, threshold success display, Really Large mode and no-misses handling passed emulator checks.
+- A fresh mundane draft purchased Alphaware Wired Reflexes, 100 regular rounds, an AK-97 and a Laser Sight. Wallet, Essence, initiative, quantities, mount and accuracy effects survived force-stop/relaunch.
 - Preview trimming and AOT are disabled after the trimmed build aborted in Mono startup.

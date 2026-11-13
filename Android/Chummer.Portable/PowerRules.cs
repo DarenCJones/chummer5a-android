@@ -157,7 +157,11 @@ public sealed partial class CharacterDocument
         foreach (var name in StandardAttributeNames)
             if (DraftEffect("Attribute", name, "aug") > 4) throw new ArgumentException("Attribute augmentations cannot exceed +4.");
     }
-    internal decimal DraftEffect(string type, string name = "", string field = "val") => (document.Root!.Element("improvements")?.Elements() ?? [])
-        .Where(e => (string?)e.Element("androidbuiltin") == "True" && (int?)e.Element("enabled") == 1 && (string?)e.Element("improvementttype") == type &&
-            (string?)e.Element("improvedname") == name && string.IsNullOrEmpty((string?)e.Element("condition"))).Sum(e => (decimal?)e.Element(field) ?? 0);
+    internal decimal DraftEffect(string type, string name = "", string field = "val")
+    {
+        var effects=(document.Root!.Element("improvements")?.Elements()??[]).Where(e=>(string?)e.Element("androidbuiltin")=="True" && (int?)e.Element("enabled")==1 &&
+            (string?)e.Element("improvementttype")==type && (string?)e.Element("improvedname")==name && string.IsNullOrEmpty((string?)e.Element("condition"))).ToArray();
+        return effects.Where(e=>string.IsNullOrEmpty((string?)e.Element("unique"))).Sum(e=>(decimal?)e.Element(field)??0)+
+            effects.Where(e=>!string.IsNullOrEmpty((string?)e.Element("unique"))).GroupBy(e=>e.Element("unique")!.Value).Sum(g=>g.Max(e=>(decimal?)e.Element(field)??0));
+    }
 }

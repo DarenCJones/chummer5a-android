@@ -19,9 +19,11 @@ mentor spirits, full contextual rule automation and non-core catalogs pending.
 PARTIAL — Magic/resonance: core talents, traditions, spells, preparations, forms,
 adept powers and PP purchases; summoning/binding, sprites, initiation, sustained
 effects, Way discounts and detailed spell/Matrix play pending.
-PARTIAL — Equipment: supported fixed-price core armor/weapons and permanent
-effects; complete catalogs, ammo, modifications, accessories, Matrix electronics,
-cyberware/bioware, vehicles/drones and encumbrance by carrying weight pending.
+PARTIAL — Equipment: supported fixed-price core armor/weapons, gear/ammunition
+inventory, basic mounted accessories and core implants for mundane drafts;
+complete catalogs, ammo loading/firing, remaining accessories/modifications,
+active Matrix electronics, awakened implant Essence effects, cyberlimbs, nested
+implants, Essence holes, vehicles/drones and carrying-weight encumbrance pending.
 PARTIAL — Derived statistics: supported app-created drafts only. Complete desktop
 improvement expressions, effect interactions and imported-character recalculation pending.
 PARTIAL — Career: manual ledger and damage records; finalization, advancement,

@@ -177,8 +177,8 @@ public sealed partial class CharacterDocument
         if (document.Root!.Element("improvements")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
             document.Root.Element("qualities")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
             document.Root.Element("gears")?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true ||
-            new[] { "powers", "weapons", "armors" }.Any(collection => document.Root.Element(collection)?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true) ||
-            new[] { "cyberwares", "biowares", "vehicles" }.Any(collection => document.Root.Element(collection)?.HasElements == true))
+            new[] { "powers", "weapons", "armors", "cyberwares" }.Any(collection => document.Root.Element(collection)?.Elements().Any(e => (string?)e.Element("androidbuiltin") != "True") == true) ||
+            new[] { "biowares", "vehicles" }.Any(collection => document.Root.Element(collection)?.HasElements == true))
             throw new InvalidOperationException("This draft has effects that the creation editor cannot yet calculate.");
     }
     private IEnumerable<XElement> AttributeNodes => document.Root!.Element("attributes")!.Elements("attribute");

@@ -83,7 +83,7 @@ public partial class WorkbenchActivity
         var query = Input(form.Layout, "Search equipment"); var items = all;
         var choice = Select(form.Layout, "Equipment", items.Select(e => e.Name).ToArray()); var details = new TextView(this); form.Layout.AddView(details);
         var equipped = new CheckBox(this) { Text = "Equip on purchase", Checked = true }; form.Layout.AddView(equipped);
-        form.Layout.AddView(new TextView(this) { Text = "This catalog supports fixed-price core armor and weapons at availability 12 or less, without bundled accessories or special effects. Ammunition, attachments, modifications, wireless bonuses and carrying-weight penalties are pending. Removing an item refunds its purchase price during creation." });
+        form.Layout.AddView(new TextView(this) { Text = "This catalog supports fixed-price core armor and weapons at availability 12 or less, without bundled accessories or special effects. Use the gear/ammunition and weapon accessories editors for supported inventory and attachments. Ammunition loading, additional modifications, wireless bonuses and carrying-weight penalties are pending. Removing an item refunds its purchase price during creation." });
         void Refresh()
         {
             details.Text = items.Length == 0 ? "No matching supported equipment." : $"{items[Math.Max(0, choice.SelectedItemPosition)].Details}\n" +
@@ -120,12 +120,15 @@ public partial class WorkbenchActivity
     {
         var s = c.EffectiveStats();
         return $"\nCalculated permanent effects\nAttributes: {string.Join(", ", s.Attributes.Select(a => $"{a.Key} {a.Value}"))}\n" +
-            $"Limits: physical {s.PhysicalLimit}, mental {s.MentalLimit}, social {s.SocialLimit}\nInitiative: {s.Initiative} + {s.InitiativeDice}D6\n" +
+            $"Essence: {c.DraftEssence:0.00}\nLimits: physical {s.PhysicalLimit}, mental {s.MentalLimit}, social {s.SocialLimit}\nInitiative: {s.Initiative} + {s.InitiativeDice}D6\n" +
             $"Armor: {s.Armor}; armor penalty: {s.ArmorPenalty}; wound penalty: {s.WoundPenalty}\nDefense pool: {s.DefensePool}; damage resistance: {s.SoakPool} (before AP)\n" +
             $"Condition monitors: {s.PhysicalBoxes} physical / {s.StunBoxes} stun\n" +
             (c.Field("adept") == "True" ? $"Power points: {c.PowerPointsRemaining:0.##}/{c.PowerPointsTotal:0.##} remaining\n" + string.Join("\n", c.LearnedPowers.Select(p => $"{p.Name} {p.Extra} {p.Rating} — {p.Cost:0.##} PP")) : "") +
-            "\n" + string.Join("\n", c.DraftWeapons().Prepend(c.DraftUnarmedAttack()).Select(w => $"{w.Name}: {w.Damage}; accuracy {w.Accuracy}; AP {w.AP}; reach {w.Reach}")) +
-            "\nPower and quality effects\n" + string.Join("\n", c.DraftEffectDescriptions()) +
+            "\n" + string.Join("\n", c.DraftWeapons().Prepend(c.DraftUnarmedAttack()).Select(w => $"{w.Name}: {w.Damage}; accuracy {w.Accuracy}; AP {w.AP}; reach {w.Reach}; attachment RC bonus {w.AccessoryRecoil} / {w.DeployedAccessoryRecoil} when deployed")) +
+            "\nPermanent effect modifiers\n" + string.Join("\n", c.DraftEffectDescriptions()) +
+            "\nImplants\n"+string.Join("\n",c.InstalledAugmentations.Select(a=>$"{a.Name} {a.Rating} — {a.Grade}; Essence {a.Essence:0.00}"))+
+            "\nPurchased gear / ammo\n"+string.Join("\n",c.DraftPurchasedGear.Select(g=>$"{g.Name} {g.Extra} × {g.Quantity}"))+
+            "\nWeapon accessories\n"+string.Join("\n",c.DraftAccessories.Select(a=>$"{a.Weapon}: {a.Name} ({a.Mount}); {(a.Equipped?"Enabled":"Disabled")}"))+
             "\nActive powers, ammunition, situational modifiers and carrying-weight penalties require manual handling.";
     }
 }
