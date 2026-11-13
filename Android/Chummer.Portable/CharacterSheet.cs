@@ -79,6 +79,8 @@ public static class CharacterSheet
                 .Append("</p><p>").Append(Encode($"Natural armor: {character.DraftRacialBonus("Armor")}; reach bonus: {character.DraftRacialBonus("Reach")}; lifestyle cost adjustment: {character.DraftRacialBonus("LifestyleCost")}%"))
                 .Append("</p>");
             var knowledge = character.DraftKnowledgeSkills;
+            if (character.DraftStartingFunds is {} funds)
+                html.Append("<h2>Starting-funds plan (not credited)</h2><p>").Append(Encode($"{funds.Lifestyle}: dice sum {funds.DiceResult}; roll {funds.LifestyleNuyen:N2} Nuyen; carryover {funds.CarryoverNuyen:N2} Nuyen / {funds.CarryoverKarma:N0} Karma; planned career Nuyen {funds.CareerNuyen:N2}")).Append("</p>");
             if (character.DraftLifestyles.Count > 0)
             {
                 html.Append("<h2>Lifestyles</h2><ul>");

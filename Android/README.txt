@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.15 (development checkpoint)
+Chummer standalone Android port — preview 0.16 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -50,6 +50,8 @@ Implemented in this preview:
 - Standard draft contacts with Charisma budgets and per-contact caps.
 - Six standard core lifestyles, prepaid months, roommates and shared costs, city labels, purchase/edit/refunds and printable summaries.
 - Metatype/dependent lifestyle costs and retroactive prepaid cost adjustments when qualities change; unaffordable changes are rejected atomically.
+- Saved starting-funds plans: lifestyle dice sums, Street fallback, best expected-value default, 5,000 Nuyen / 7 Karma carryover caps and live draft-balance previews. Plans do not credit money or finalize characters.
+- Starting-funds selections are cleared when their lifestyle is removed or its base changes; month/roommate/quality changes refresh carryover without rerolling.
 - Android printing / Save as PDF for a portable character summary.
 - Searchable offline catalog browsing across bundled upstream data files.
 - Characters/Create/Play/Library navigation and an in-app license view.
@@ -97,6 +99,8 @@ Validation:
 - API 34 emulator: exchanging 1 Karma added 2,000 Nuyen; the exchange and its reversal both retained correct balances after restart.
 - Six standard lifestyles, roommate sharing, metatype/dependent costs, quality repricing, purchase/edit/refunds, summaries and compressed persistence checks pass.
 - API 34 emulator: shared Low lifestyle for two months charged 2,200 Nuyen; dependent repriced it to 2,420; restart retained the new cost/balance; editing to one month refunded 1,210; removal restored 140,000 Nuyen and stayed removed after restart.
+- Starting-funds fallback/roll/selection, carryover caps/cents, invalidation, no premature wallet credit and compressed persistence checks pass.
+- API 34 emulator: Street sum 5 planned 5,100 Nuyen without wallet changes; editor/restart retained the sum. Buying Low invalidated fallback; 3D6 roll and manual sum 12 planned 5,720; wallet stayed 137,800 after restart; clear/resave preserved funds.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:

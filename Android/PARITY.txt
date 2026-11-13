@@ -34,7 +34,8 @@ buyoffs, expenses/undo integration and complete career editing pending.
 PARTIAL — Contacts: standard draft contacts; imported contacts and expanded rules pending.
 PARTIAL — Six core standard lifestyles, prepaid months, roommate cost/sharing,
 metatype/dependent costs and creation purchase/edit/refunds. Advanced qualities,
-trust funds, free grids, starting-Nuyen rolls and recurring career payments pending.
+trust funds, free grids and recurring career payments pending. Standard starting
+roll/carryover selection is saved as a plan; applying it awaits creation finalization.
 PARTIAL — Play tools: core dice, desktop alternative methods, threshold comparisons,
 miss rerolls and initiative pass tracking; extended tests, complete initiative
 rules and character-linked combat workflows pending.

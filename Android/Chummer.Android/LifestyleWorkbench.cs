@@ -33,7 +33,7 @@ public partial class WorkbenchActivity
                 {
                     if (!int.TryParse(months.Text, out var count) || !int.TryParse(roommates.Text, out var people) || count < 1 || count > 1200) throw new ArgumentException("Enter valid whole-number months and roommates.");
                     var monthly = Lifestyles().Quote(c, items[Math.Max(0, choice.SelectedItemPosition)].Id, people, split.Checked);
-                    details.Text = $"Monthly cost: {monthly:N2} Nuyen\nPrepaid cost: {monthly * count:N2} Nuyen\nAvailable including this lifestyle's refund: {c.Nuyen + (selected?.PurchaseCost ?? 0):N2}\nIncludes supported metatype/dependent adjustments and roommate sharing. Advanced lifestyle qualities, trust funds, free grids, recurring career payments and starting-Nuyen rolls are pending.";
+                    details.Text = $"Monthly cost: {monthly:N2} Nuyen\nPrepaid cost: {monthly * count:N2} Nuyen\nAvailable including this lifestyle's refund: {c.Nuyen + (selected?.PurchaseCost ?? 0):N2}\nIncludes supported metatype/dependent adjustments and roommate sharing. Use Plan starting Nuyen for a standard starting-funds selection. Advanced lifestyle qualities, trust funds, free grids and recurring career payments are pending.";
                 }
                 catch (ArgumentException e) { details.Text = e.Message; }
             }

@@ -1078,3 +1078,54 @@ using (var unsupportedHome = new MemoryStream(Encoding.UTF8.GetBytes(advancedHom
     Reject(() => _ = advancedHome.DraftAttributes);
 }
 Console.WriteLine("PASS: six standard lifestyles, prepaid purchases/edit/refunds, roommate sharing, metatype/dependent pricing, atomic quality repricing, summaries and compressed persistence.");
+
+var fundsRunner = creation.CreateHumanDraft("Starting funds QA", "", new PriorityChoice("SumtoTen", "C", "A", "A", "E"));
+var fallbackFunds = fundsRunner.DraftStartingFundsOptions.Single();
+Assert(fallbackFunds.Id == "" && fallbackFunds.Dice == 1 && fallbackFunds.Multiplier == 20, "No-lifestyle fallback must use Street's 1D6 × 20.");
+fundsRunner.SetDraftStartingFunds("", 5);
+var streetFunds = fundsRunner.DraftStartingFunds!;
+Assert(streetFunds.LifestyleNuyen == 100 && streetFunds.CareerNuyen == 5100 && streetFunds.CarryoverKarma == 7 && streetFunds.DiscardedNuyen == 1000 && streetFunds.DiscardedKarma == 18,
+    "Standard starting funds must add the lifestyle roll to capped Nuyen/Karma carryover.");
+fundsRunner.SetDraftStartingFunds("", 5);
+Assert(fundsRunner.Nuyen == 6000 && fundsRunner.Karma == 25 && !fundsRunner.IsCareer, "Saving starting funds must never credit or finalize the draft.");
+var startingBefore = Xml(fundsRunner);
+Reject(() => fundsRunner.SetDraftStartingFunds("", 7));
+Reject(() => fundsRunner.SetDraftStartingFunds("unknown", 1));
+Reject(() => fundsRunner.RollDraftStartingFunds("", () => 0));
+Assert(XNode.DeepEquals(startingBefore, Xml(fundsRunner)), "Invalid starting rolls must retain the selected plan and draft balances.");
+lifestyleRules.Set(fundsRunner, null, LifestyleId("Low"), "Home <safe>", 2);
+Assert(fundsRunner.DraftStartingFunds is null, "Purchasing a lifestyle must invalidate the no-lifestyle fallback selection.");
+var fundsHome = fundsRunner.DraftLifestyles.Single();
+var startingFaces = new Queue<int>([6, 2, 1]);
+var rolledFunds = fundsRunner.RollDraftStartingFunds(fundsHome.Id, () => startingFaces.Dequeue());
+Assert(rolledFunds.DiceResult == 9 && rolledFunds.LifestyleNuyen == 540 && rolledFunds.CareerNuyen == 2540 && startingFaces.Count == 0,
+    "Starting funds must sum D6 faces, multiply by lifestyle rate and add only available carryover.");
+Assert(CharacterSheet.SummaryHtml(fundsRunner).Contains("Home &lt;safe&gt;") && CharacterSheet.SummaryHtml(fundsRunner).Contains("not credited"), "Starting funds must be safely labeled in the printable summary.");
+using (var startingSave = new MemoryStream())
+{
+    fundsRunner.SaveCompressed(startingSave); startingSave.Position = 0;
+    var reopenedFunds = CharacterDocument.LoadCompressed(startingSave);
+    Assert(reopenedFunds.DraftStartingFunds == rolledFunds && reopenedFunds.Nuyen == 2000, "Starting selection and unchanged wallet must survive compressed saves.");
+}
+lifestyleRules.Set(fundsRunner, fundsHome.Id, LifestyleId("Low"), "Home <safe>", 1, 1, true);
+Assert(fundsRunner.DraftStartingFunds?.DiceResult == 9 && fundsRunner.DraftStartingFunds?.CareerNuyen == 5440,
+    "Roommate/month changes must retain a valid roll but refresh available carryover.");
+lifestyleRules.Set(fundsRunner, fundsHome.Id, LifestyleId("Medium"), "Medium home", 1);
+Assert(fundsRunner.DraftStartingFunds is null, "Changing the lifestyle base must invalidate its saved starting roll.");
+fundsRunner.SetDraftStartingFunds(fundsHome.Id, 14);
+lifestyleRules.Set(fundsRunner, null, LifestyleId("Street"), "Street backup", 1);
+Assert(fundsRunner.DraftStartingFundsOptions[0].Id == fundsHome.Id, "The best expected-value lifestyle must be the default choice.");
+qualityRules.Add(fundsRunner, QualityId("Dependent (Nuisance)"));
+Assert(fundsRunner.DraftStartingFunds?.CareerNuyen == 1900 && fundsRunner.DraftStartingFunds?.DiceResult == 14,
+    "Quality-driven lifestyle repricing must update carryover without crediting or rerolling funds.");
+lifestyleRules.Remove(fundsRunner, fundsHome.Id);
+Assert(fundsRunner.DraftStartingFunds is null, "Removing the selected lifestyle must clear its starting roll.");
+fundsRunner.SetDraftStartingFunds(fundsRunner.DraftStartingFundsOptions.Single().Id, 4);
+fundsRunner.ClearDraftStartingFunds();
+Assert(fundsRunner.DraftStartingFunds is null && fundsRunner.Nuyen == 6000, "Clearing a plan must preserve draft money.");
+var fractionalFunds = creation.CreateHumanDraft("Fractional funds", "", new PriorityChoice("SumtoTen", "C", "A", "A", "E"));
+lifestyleRules.Set(fractionalFunds, null, LifestyleId("Squatter"), "Shared", 7, 3, true);
+fractionalFunds.SetDraftStartingFunds(fractionalFunds.DraftLifestyles.Single().Id, 7);
+Assert(fractionalFunds.Nuyen == 4862.5m && fractionalFunds.DraftStartingFunds?.CareerNuyen == 5142.5m && CharacterSheet.SummaryHtml(fractionalFunds).Contains((5142.5m).ToString("N2")),
+    "Fractional lifestyle costs must retain cents in carryover, totals and the printed starting-funds plan.");
+Console.WriteLine("PASS: lifestyle starting rolls, Street fallback, best expected-value choice, carryover caps/cents, no premature credit/finalization, invalidation, live repricing and compressed persistence.");

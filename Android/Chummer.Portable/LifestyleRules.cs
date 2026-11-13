@@ -95,12 +95,14 @@ public sealed partial class CharacterDocument
             old.ReplaceWith(merged);
         }
         SetField("nuyen", (Nuyen + refund - cost).ToString(CultureInfo.InvariantCulture));
+        InvalidateDraftStartingFunds();
     }
     internal void RemoveDraftLifestyle(string id)
     {
         RequireDraft(); var entry = DraftLifestyles.SingleOrDefault(l => l.Id == id) ?? throw new ArgumentException("Unknown lifestyle.");
         LifestyleNodes.Single(e => (string?)e.Element("guid") == id).Remove();
         SetField("nuyen", (Nuyen + entry.PurchaseCost).ToString(CultureInfo.InvariantCulture));
+        InvalidateDraftStartingFunds();
     }
     internal void RepriceDraftLifestyles()
     {
