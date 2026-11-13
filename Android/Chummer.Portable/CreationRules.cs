@@ -9,9 +9,10 @@ public sealed record PriorityChoice(string Method, string Heritage, string Attri
     string Talent = "E", string Path = "Mundane", string Aspect = "Sorcery");
 public sealed record CreationBudget(int Attributes, int Special, int Skills, int SkillGroups, decimal Nuyen);
 public sealed record DraftAttribute(string Name, int Minimum, int Maximum, int Rating);
-public sealed record DraftSkill(string Id, string Name, string Attribute, int Rating, string Group = "", bool Defaultable = false);
-public sealed record DraftSkillGroup(string Name, int Rating);
-public sealed record DraftKnowledge(string Id, string Name, string Type, int Rating, bool Native);
+public sealed record DraftSkill(string Id, string Name, string Attribute, int Rating, string Group = "", bool Defaultable = false, int KarmaRating = 0);
+public sealed record DraftSkillGroup(string Name, int Rating, int KarmaRating = 0);
+public sealed record DraftKnowledge(string Id, string Name, string Type, int Rating, bool Native,
+    int KarmaRating = 0, string Specialization = "", bool SpecializationKarma = false);
 public sealed record UnaugmentedStats(int PhysicalLimit, int MentalLimit, int SocialLimit, int Initiative,
     int PhysicalBoxes, int StunBoxes, int KnowledgePoints, int ContactPoints);
 
@@ -164,7 +165,7 @@ public sealed partial class CreationRules
         .Where(e => AllowsSkill(e, character.Field("prioritytalent"), character.Field("androidaspect")) && character.HasDraftSkill(e.Element("id")!.Value))
         .Select(e =>
         new DraftSkill(e.Element("id")!.Value, e.Element("name")!.Value, e.Element("attribute")!.Value,
-            character.DraftSkillRating(e.Element("id")!.Value), (string?)e.Element("skillgroup") ?? "", (string?)e.Element("default") == "True")).OrderBy(e => e.Name).ToArray();
+            character.DraftSkillRating(e.Element("id")!.Value), (string?)e.Element("skillgroup") ?? "", (string?)e.Element("default") == "True", character.DraftSkillKarmaLevels(e.Element("id")!.Value))).OrderBy(e => e.Name).ToArray();
 }
 
 public sealed partial class CharacterDocument
@@ -207,7 +208,7 @@ public sealed partial class CharacterDocument
         if (proposed.Where(e => !StandardAttributeNames.Contains(e.Name)).Sum(e => e.Rating - e.Minimum) > Number("totalspecial")) throw new ArgumentException("Not enough special attribute points.");
         if (proposed.Count(e => StandardAttributeNames.Contains(e.Name) && e.Rating == e.Maximum) > 1) throw new ArgumentException("Only one physical or mental attribute may start at its natural maximum under the standard rules.");
         var knowledgeBudget = 2 * (proposed.Single(e => e.Name == "INT").Rating + proposed.Single(e => e.Name == "LOG").Rating);
-        if (DraftKnowledgeSkills.Sum(k => k.Native ? 0 : k.Rating) > knowledgeBudget)
+        if (KnowledgePointCost > knowledgeBudget)
             throw new ArgumentException("Lower knowledge or language ratings before reducing their point budget.");
         if (Contacts.Sum(c => c.Connection + c.Loyalty) > 3 * proposed.Single(e => e.Name == "CHA").Rating)
             throw new ArgumentException("Lower contact costs before reducing Charisma.");
@@ -227,35 +228,56 @@ public sealed partial class CharacterDocument
     {
         var skill = SkillNodes.Single(e => (string?)e.Element("suid") == id);
         var group = (string?)skill.Element("skillgroup");
-        return ((int?)skill.Element("base") ?? 0) + FreeSkillRating((string?)skill.Element("name") ?? "") + (group is not null ? GroupRating(group) : 0);
+        return ((int?)skill.Element("base") ?? 0) + ((int?)skill.Element("karma") ?? 0) + FreeSkillRating((string?)skill.Element("name") ?? "") + (group is not null ? GroupRating(group) : 0);
     }
-    private int GroupRating(string name) => ((int?)GroupNodes.SingleOrDefault(e => (string?)e.Element("name") == name)?.Element("base") ?? 0) + FreeGroupRating(name);
+    internal int DraftSkillKarmaLevels(string id) => (int?)SkillNodes.Single(e => (string?)e.Element("suid") == id).Element("karma") ?? 0;
+    public static int ActiveSkillKarmaCost(int rating, int karmaLevels)
+    {
+        if (rating < 0 || rating > 7 || karmaLevels < 0 || karmaLevels > rating) throw new ArgumentException("Active skill rating must be 0–7 and Karma levels cannot exceed the rating.");
+        var lower = rating - karmaLevels;
+        return rating * (rating + 1) - lower * (lower + 1);
+    }
+    private int GroupRating(string name)
+    {
+        var group = GroupNodes.SingleOrDefault(e => (string?)e.Element("name") == name);
+        return ((int?)group?.Element("base") ?? 0) + ((int?)group?.Element("karma") ?? 0) + FreeGroupRating(name);
+    }
     public IReadOnlyList<DraftSkillGroup> DraftGroups
     {
-        get { RequireDraft(); return GroupNodes.Select(g => new DraftSkillGroup(g.Element("name")!.Value, GroupRating(g.Element("name")!.Value))).OrderBy(g => g.Name).ToArray(); }
+        get { RequireDraft(); return GroupNodes.Select(g => new DraftSkillGroup(g.Element("name")!.Value, GroupRating(g.Element("name")!.Value), (int?)g.Element("karma") ?? 0)).OrderBy(g => g.Name).ToArray(); }
     }
     public int GroupPointsRemaining => ((int?)document.Root!.Element("newskills")?.Element("skillgrpsmax") ?? 0) - GroupNodes.Sum(g => (int?)g.Element("base") ?? 0);
-    public void SetDraftGroup(string name, int rating)
+    public static int SkillGroupKarmaCost(int rating, int karmaLevels)
+    {
+        if (rating < 0 || rating > 6 || karmaLevels < 0 || karmaLevels > rating) throw new ArgumentException("Group rating must be 0–6 and Karma levels cannot exceed the rating.");
+        var lower = rating - karmaLevels;
+        return 5 * (rating * (rating + 1) - lower * (lower + 1)) / 2;
+    }
+    public void SetDraftGroup(string name, int rating, int karmaLevels = 0)
     {
         RequireDraft();
         if (rating is < 0 or > 6) throw new ArgumentException("Group rating must be from 0 to 6.");
         var group = GroupNodes.SingleOrDefault(g => (string?)g.Element("name") == name) ?? throw new ArgumentException("Unknown skill group.");
-        if (rating > 0 && SkillNodes.Any(s => (string?)s.Element("skillgroup") == name && ((int?)s.Element("base") ?? 0) > 0))
+        if (rating > 0 && SkillNodes.Any(s => (string?)s.Element("skillgroup") == name && ((int?)s.Element("base") ?? 0) + ((int?)s.Element("karma") ?? 0) > 0))
             throw new ArgumentException("Reset individual member skills before allocating group points.");
         if (SkillNodes.Any(s => (string?)s.Element("skillgroup") == name && FreeSkillRating(s.Element("name")!.Value) + rating > DraftSkillMaximum(s.Element("name")!.Value)))
             throw new ArgumentException("This group rating would exceed a member skill's creation limit.");
         var current = (int?)group.Element("base") ?? 0;
         var free = FreeGroupRating(name);
         if (rating < free) throw new ArgumentException($"This talent grants a free group rating of {free}.");
-        if (rating - free - current > GroupPointsRemaining) throw new ArgumentException("Not enough skill group points.");
+        if (karmaLevels < 0 || karmaLevels > rating - free) throw new ArgumentException("Karma levels cannot include the free priority group rating.");
+        if (rating - free - karmaLevels - current > GroupPointsRemaining) throw new ArgumentException("Not enough skill group points.");
+        var balance = Karma + SkillGroupKarmaCost(GroupRating(name), (int?)group.Element("karma") ?? 0) - SkillGroupKarmaCost(rating, karmaLevels);
+        if (balance < 0) throw new ArgumentException("Not enough Karma for these skill group levels.");
         var memberRatings = SkillNodes.ToDictionary(s => s.Element("name")!.Value, s => DraftSkillRating(s.Element("suid")!.Value) +
             ((string?)s.Element("skillgroup") == name ? rating - GroupRating(name) : 0));
         ValidatePowerConstraints(skillRatings: memberRatings);
-        group.SetElementValue("base", rating - free);
+        group.SetElementValue("base", rating - free - karmaLevels); group.SetElementValue("karma", karmaLevels);
+        SetField("karma", balance.ToString(CultureInfo.InvariantCulture));
     }
     public int SkillPointsRemaining => ((int?)document.Root!.Element("newskills")?.Element("skillptsmax") ?? 0) -
         (document.Root!.Element("newskills")?.Element("skills")?.Elements("skill").Sum(e => (int?)e.Element("base") ?? 0) ?? 0) - SpecializationPointCost;
-    public void SetDraftSkill(string id, int rating)
+    public void SetDraftSkill(string id, int rating, int karmaLevels = 0)
     {
         RequireDraft();
         var node = document.Root!.Element("newskills")!.Element("skills")!.Elements("skill").SingleOrDefault(e => (string?)e.Element("suid") == id)
@@ -267,10 +289,16 @@ public sealed partial class CharacterDocument
             throw new ArgumentException("This skill follows its group rating. Edit the group to change the rating.");
         var free = FreeSkillRating(node.Element("name")!.Value);
         if (rating < free) throw new ArgumentException($"This talent grants a free skill rating of {free}.");
-        if (rating - free - current > SkillPointsRemaining) throw new ArgumentException("Not enough skill points.");
+        if (karmaLevels < 0 || karmaLevels > rating - free) throw new ArgumentException("Karma levels cannot include the free priority rating.");
+        if (rating - free - karmaLevels - current > SkillPointsRemaining) throw new ArgumentException("Not enough skill points.");
+        if (karmaLevels > 0 && rating == karmaLevels && node.Element("specs")?.HasElements == true && (string?)node.Element("buywithkarma") != "True")
+            throw new ArgumentException("Remove or pay Karma for the specialization before funding this skill entirely with Karma.");
+        var balance = Karma + ActiveSkillKarmaCost(DraftSkillRating(id), DraftSkillKarmaLevels(id)) - ActiveSkillKarmaCost(rating, karmaLevels);
+        if (balance < 0) throw new ArgumentException("Not enough Karma for these active skill levels.");
         var proposedSkills = SkillNodes.ToDictionary(s => s.Element("name")!.Value, s => s == node ? rating : DraftSkillRating(s.Element("suid")!.Value));
         ValidatePowerConstraints(skillRatings: proposedSkills);
-        node.SetElementValue("base", rating - free);
+        node.SetElementValue("base", rating - free - karmaLevels); node.SetElementValue("karma", karmaLevels);
+        SetField("karma", balance.ToString(CultureInfo.InvariantCulture));
     }
     public IReadOnlyList<DraftKnowledge> DraftKnowledgeSkills
     {
@@ -279,39 +307,74 @@ public sealed partial class CharacterDocument
             RequireDraft();
             return document.Root!.Element("newskills")!.Element("knoskills")!.Elements("skill")
                 .Select(k => new DraftKnowledge(k.Element("guid")!.Value, k.Element("name")!.Value, k.Element("type")!.Value,
-                    (int?)k.Element("base") ?? 0, string.Equals((string?)k.Element("isnativelanguage"), "True", StringComparison.OrdinalIgnoreCase)))
+                    ((int?)k.Element("base") ?? 0) + ((int?)k.Element("karma") ?? 0), string.Equals((string?)k.Element("isnativelanguage"), "True", StringComparison.OrdinalIgnoreCase),
+                    (int?)k.Element("karma") ?? 0, (string?)k.Element("specs")?.Element("spec")?.Element("name") ?? "", (string?)k.Element("buywithkarma") == "True"))
                 .ToArray();
         }
     }
-    public int KnowledgePointsRemaining => DraftStats().KnowledgePoints - DraftKnowledgeSkills.Sum(k => k.Native ? 0 : k.Rating);
-    public void SetDraftKnowledge(string? id, string name, string type, int rating, bool native)
+    private static int KnowledgePoints(DraftKnowledge k) => k.Native ? 0 : k.Rating - k.KarmaRating + (k.Specialization.Length > 0 && !k.SpecializationKarma ? 1 : 0);
+    private int KnowledgePointCost => DraftKnowledgeSkills.Sum(KnowledgePoints);
+    public int KnowledgePointsRemaining => DraftStats().KnowledgePoints - KnowledgePointCost;
+    public static int KnowledgeKarmaCost(int rating, int karmaRating, bool karmaSpecialization = false)
+    {
+        if (rating < 0 || rating > 6 || karmaRating < 0 || karmaRating > rating) throw new ArgumentException("Knowledge ratings must be 0–6 and Karma levels cannot exceed the total rating.");
+        var lower = rating - karmaRating;
+        return (rating * (rating + 1) - lower * (lower + 1)) / 2 + (karmaSpecialization ? 7 : 0);
+    }
+    private static int KnowledgeKarmaCost(DraftKnowledge k) => KnowledgeKarmaCost(k.Rating, k.KarmaRating, k.Specialization.Length > 0 && k.SpecializationKarma);
+    public void SetDraftKnowledge(string? id, string name, string type, int rating, bool native,
+        int karmaRating = 0, string specialization = "", bool specializationKarma = false)
     {
         RequireDraft();
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Enter a skill or language name.");
         if (type is not ("Academic" or "Interest" or "Language" or "Professional" or "Street")) throw new ArgumentException("Unknown knowledge category.");
         if (native && type != "Language") throw new ArgumentException("Only a language can be native.");
         if (!native && rating is < 1 or > 6) throw new ArgumentException("Non-native rating must be from 1 to 6.");
+        specialization = specialization.Trim();
+        if (specialization.Length > 200) throw new ArgumentException("Specializations may contain at most 200 characters.");
+        if (native && (karmaRating != 0 || specialization.Length > 0)) throw new ArgumentException("Native languages cannot purchase ratings or specializations.");
+        if (native) rating = 0;
+        if (!native && karmaRating == rating && specialization.Length > 0 && !specializationKarma)
+            throw new ArgumentException("A skill bought entirely with Karma must also buy its specialization with Karma under standard rules.");
+        var cost = KnowledgeKarmaCost(rating, karmaRating, specialization.Length > 0 && specializationKarma);
         var existing = DraftKnowledgeSkills;
         if (id is not null && !existing.Any(k => k.Id == id)) throw new ArgumentException("Unknown knowledge skill.");
         if (existing.Any(k => k.Id != id && k.Type == type && k.Name.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase)))
             throw new ArgumentException("That skill or language already exists.");
         if (native && existing.Count(k => k.Id != id && k.Native) >= 1 + DraftEffect("NativeLanguageLimit")) throw new ArgumentException("The character's native-language limit has been reached.");
-        if (existing.Where(k => k.Id != id).Sum(k => k.Native ? 0 : k.Rating) + (native ? 0 : rating) > DraftStats().KnowledgePoints)
+        var proposed = new DraftKnowledge(id ?? Guid.NewGuid().ToString("D"), name.Trim(), type, rating, native, karmaRating, specialization, specializationKarma);
+        if (existing.Where(k => k.Id != id).Sum(KnowledgePoints) + KnowledgePoints(proposed) > DraftStats().KnowledgePoints)
             throw new ArgumentException("Not enough knowledge points.");
-        var updated = new XElement("skill", new XElement("guid", id ?? Guid.NewGuid().ToString("D")), new XElement("suid", Guid.Empty.ToString("D")),
+        var balance = Karma + (existing.SingleOrDefault(k => k.Id == id) is {} old ? KnowledgeKarmaCost(old) : 0) - cost;
+        if (balance < 0) throw new ArgumentException("Not enough Karma for these knowledge ratings or specialization.");
+        var previous = document.Root!.Element("newskills")!.Element("knoskills")!.Elements("skill").SingleOrDefault(k => (string?)k.Element("guid") == id);
+        var updated = previous is null ? new XElement("skill", new XElement("guid", proposed.Id), new XElement("suid", Guid.Empty.ToString("D")),
             new XElement("name", name.Trim()), new XElement("isknowledge", "True"), new XElement("skillcategory", type),
-            new XElement("type", type), new XElement("isnativelanguage", native ? "True" : "False"),
-            new XElement("base", native ? 0 : rating), new XElement("karma", 0), new XElement("buywithkarma", "False"));
+            new XElement("type", type)) : new XElement(previous);
+        updated.SetElementValue("name", name.Trim()); updated.SetElementValue("type", type); updated.SetElementValue("skillcategory", type);
+        updated.SetElementValue("isnativelanguage", native ? "True" : "False");
+        updated.SetElementValue("base", rating - karmaRating); updated.SetElementValue("karma", karmaRating);
+        updated.SetElementValue("buywithkarma", specializationKarma && specialization.Length > 0 ? "True" : "False");
+        var specs = updated.Element("specs");
+        if (specs is null) { specs = new XElement("specs"); updated.Add(specs); }
+        if (specs.Elements().Any(s => (string?)s.Element("androidbuiltin") != "True")) throw new InvalidOperationException("This knowledge skill has specializations that need additional rule support.");
+        var oldSpec = specs.Element("spec");
+        if (specialization.Length == 0) specs.RemoveNodes();
+        else if (oldSpec is not null) oldSpec.SetElementValue("name", specialization);
+        else specs.Add(new XElement("spec", new XElement("guid", Guid.NewGuid().ToString("D")), new XElement("name", specialization),
+            new XElement("free", "False"), new XElement("expertise", "False"), new XElement("androidbuiltin", "True")));
         var parent = document.Root!.Element("newskills")!.Element("knoskills")!;
         if (id is null) parent.Add(updated);
         else parent.Elements("skill").Single(k => (string?)k.Element("guid") == id).ReplaceWith(updated);
+        SetField("karma", balance.ToString(CultureInfo.InvariantCulture));
     }
     public void RemoveDraftKnowledge(string id)
     {
         RequireDraft();
         var node = document.Root!.Element("newskills")!.Element("knoskills")!.Elements("skill").SingleOrDefault(k => (string?)k.Element("guid") == id)
             ?? throw new ArgumentException("Unknown knowledge skill.");
-        node.Remove();
+        var refund = KnowledgeKarmaCost(DraftKnowledgeSkills.Single(k => k.Id == id));
+        node.Remove(); SetField("karma", (Karma + refund).ToString(CultureInfo.InvariantCulture));
     }
     public UnaugmentedStats DraftStats()
     {

@@ -1,4 +1,4 @@
-Chummer standalone Android port — preview 0.11 (development checkpoint)
+Chummer standalone Android port — preview 0.12 (development checkpoint)
 
 Upstream base: 3325ee0589be3d35743f6ed720889018437ad555
 Fork: https://github.com/DarenCJones/chummer5a-android
@@ -38,6 +38,8 @@ Implemented in this preview:
 - Loaded ammunition damage/AP/type changes, remaining-round refunds and desktop-compatible clip references.
 - Core creation Essence loss for Magic/Resonance, restored ratings on implant removal and adept/mystic adept power-point revalidation.
 - Draft attribute, individual active skill, skill group, knowledge and language allocation.
+- Mixed point/Karma funding for active skills, skill groups and knowledge/languages, highest-level pricing, creation refunds and priority-grant repricing.
+- One knowledge/language specialization per non-native skill, costing 1 knowledge point or 7 Karma; entirely Karma-funded skills require Karma-funded specializations.
 - Standard draft point budgets, natural maxima and one-free-native-language validation.
 - Unaugmented core metatype draft limits, initiative and condition monitor calculations.
 - Dice pools with exploding sixes, cinematic/rushed options, Gremlins, variable glitches and bubble dice.
@@ -51,7 +53,7 @@ Implemented in this preview:
 Still pending for desktop feature parity:
 - Metavariants, other metatypes, Karma/Life Module creation and final creation validation.
 - Adept Way discounts, initiation, activated/situational power tests, summoning/binding, sprites and detailed magic/Matrix play.
-- Remaining quality types (including mentor spirits), knowledge specializations and strict-group house rules.
+- Remaining quality types (including mentor spirits), remaining knowledge specialization variants and strict-group house rules.
 - Full equipment catalogs, unusual loading systems, integrated attack/recoil workflows, remaining/bundled accessories, modifications and active electronics.
 - Burnout to zero, combined Improved Reflexes/initiative-implant interactions, cyberlimbs, modular/nested implants, remaining augmentations, Essence holes and additional grades.
 - Active spell effects, wireless bonuses, weapon firing workflows, carrying-weight penalties and equipment house rules.
@@ -83,6 +85,8 @@ Validation:
 - Magician/adept/technomancer Essence loss, min/max improvement records, power-budget rejection and creation removal restoration checks pass.
 - Sensitive System multiplier-before-rounding, existing implant repricing, bioware rejection and Magic restoration checks pass.
 - API 34 x86_64 emulator: Sensitive System addition, blocked bioware purchase, cyberware quote/purchase, Essence 4.20 / Magic 4 / Spellcasting pool 9 and force-stop/reopen persistence verified.
+- Active/group/knowledge mixed funding, free-grant repricing, specialization funding restrictions and atomic/refund checks pass.
+- API 34 emulator: knowledge 4 with Ancient specialization cost 14 Karma/two knowledge points; Pistols 2 cost 6 Karma; Athletics 1 cost 5 Karma; ratings, pools, specialty and final balance 4 persisted after restart.
 - Automated library checks do not establish complete desktop parity or Android UI correctness.
 
 From this Android directory:

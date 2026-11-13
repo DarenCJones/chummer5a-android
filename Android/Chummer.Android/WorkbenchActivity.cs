@@ -286,10 +286,22 @@ public partial class WorkbenchActivity : Activity
                 var skill = skills[args.Which]; var form = Form();
                 form.Layout.AddView(new TextView(this) { Text = $"Linked attribute: {skill.Attribute}. Group: {skill.Group}. Reset the group to zero before assigning individual points. Use Skill specializations to add a specialization after training this skill." });
                 var value = Input(form.Layout, $"Skill rating (0–{c.DraftSkillMaximum(skill.Name)})", skill.Rating.ToString()); value.InputType = InputTypes.ClassNumber;
+                var karmaLevels = Input(form.Layout, "Levels paid with Karma", skill.KarmaRating.ToString()); karmaLevels.InputType = InputTypes.ClassNumber;
+                var cost = new TextView(this); form.Layout.AddView(cost);
+                void RefreshCost()
+                {
+                    try
+                    {
+                        if (!int.TryParse(value.Text, out var total) || !int.TryParse(karmaLevels.Text, out var levels)) throw new ArgumentException("Enter whole-number ratings.");
+                        cost.Text = $"Karma cost: {CharacterDocument.ActiveSkillKarmaCost(total, levels)}; available including this skill's refund: {c.Karma + CharacterDocument.ActiveSkillKarmaCost(skill.Rating, skill.KarmaRating)}.\nKarma funds the highest rating levels at twice each new rating. Free priority ratings cannot be paid with Karma. Group/individual mixing remains unsupported.";
+                    }
+                    catch (ArgumentException e) { cost.Text = e.Message; }
+                }
+                value.TextChanged += (_, _) => RefreshCost(); karmaLevels.TextChanged += (_, _) => RefreshCost(); RefreshCost();
                 EditDialog(skill.Name, form.Scroll, () =>
                 {
-                    if (!int.TryParse(value.Text, out var rating)) throw new ArgumentException("Enter a whole-number rating.");
-                    Commit(updated => updated.SetDraftSkill(skill.Id, rating));
+                    if (!int.TryParse(value.Text, out var rating) || !int.TryParse(karmaLevels.Text, out var levels)) throw new ArgumentException("Enter whole-number ratings.");
+                    Commit(updated => updated.SetDraftSkill(skill.Id, rating, levels));
                 });
             }))!.Show();
     }
@@ -322,10 +334,22 @@ public partial class WorkbenchActivity : Activity
                 var group = groups[args.Which]; var form = Form();
                 form.Layout.AddView(new TextView(this) { Text = "A group rating applies to all its member skills. Group and individual points cannot be mixed in this creation editor." });
                 var value = Input(form.Layout, "Group rating (0–6)", group.Rating.ToString()); value.InputType = InputTypes.ClassNumber;
+                var karmaLevels = Input(form.Layout, "Group levels paid with Karma", group.KarmaRating.ToString()); karmaLevels.InputType = InputTypes.ClassNumber;
+                var cost = new TextView(this); form.Layout.AddView(cost);
+                void RefreshCost()
+                {
+                    try
+                    {
+                        if (!int.TryParse(value.Text, out var total) || !int.TryParse(karmaLevels.Text, out var levels)) throw new ArgumentException("Enter whole-number ratings.");
+                        cost.Text = $"Karma cost: {CharacterDocument.SkillGroupKarmaCost(total, levels)}; available including this group's refund: {c.Karma + CharacterDocument.SkillGroupKarmaCost(group.Rating, group.KarmaRating)}.\nKarma funds the highest levels at five times each new rating. Free priority group ratings cannot be paid with Karma.";
+                    }
+                    catch (ArgumentException e) { cost.Text = e.Message; }
+                }
+                value.TextChanged += (_, _) => RefreshCost(); karmaLevels.TextChanged += (_, _) => RefreshCost(); RefreshCost();
                 EditDialog(group.Name, form.Scroll, () =>
                 {
-                    if (!int.TryParse(value.Text, out var rating)) throw new ArgumentException("Enter a whole-number rating.");
-                    Commit(updated => updated.SetDraftGroup(group.Name, rating));
+                    if (!int.TryParse(value.Text, out var rating) || !int.TryParse(karmaLevels.Text, out var levels)) throw new ArgumentException("Enter whole-number ratings.");
+                    Commit(updated => updated.SetDraftGroup(group.Name, rating, levels));
                 });
             }))!.Show();
     }
@@ -341,7 +365,26 @@ public partial class WorkbenchActivity : Activity
                 string[] types = ["Academic", "Interest", "Language", "Professional", "Street"];
                 var type = Select(form.Layout, "Category", types, Math.Max(0, Array.IndexOf(types, existing?.Type ?? "Academic")));
                 var rating = Input(form.Layout, "Rating (1–6, ignored for native language)", (existing?.Rating ?? 1).ToString()); rating.InputType = InputTypes.ClassNumber;
+                var karmaLevels = Input(form.Layout, "Levels paid with Karma (0–total rating)", (existing?.KarmaRating ?? 0).ToString()); karmaLevels.InputType = InputTypes.ClassNumber;
                 var native = new CheckBox(this) { Text = "Native language (one free under standard rules)", Checked = existing?.Native ?? false }; form.Layout.AddView(native);
+                var specialization = Input(form.Layout, "Knowledge specialization (optional)", existing?.Specialization ?? "");
+                var specPayment = Select(form.Layout, "Specialization payment", new[] { "1 knowledge point", "7 Karma" }, existing?.SpecializationKarma == true ? 1 : 0);
+                var costs = new TextView(this); form.Layout.AddView(costs);
+                void RefreshCosts()
+                {
+                    try
+                    {
+                        if (!int.TryParse(rating.Text, out var total) || !int.TryParse(karmaLevels.Text, out var levels)) throw new ArgumentException("Enter whole-number ratings.");
+                        var hasSpec = !string.IsNullOrWhiteSpace(specialization.Text);
+                        var cost = CharacterDocument.KnowledgeKarmaCost(native.Checked ? 0 : total, levels, hasSpec && specPayment.SelectedItemPosition == 1);
+                        var refund = existing is null ? 0 : CharacterDocument.KnowledgeKarmaCost(existing.Rating, existing.KarmaRating, existing.Specialization.Length > 0 && existing.SpecializationKarma);
+                        costs.Text = $"Knowledge points: {(native.Checked ? 0 : total - levels + (hasSpec && specPayment.SelectedItemPosition == 0 ? 1 : 0))}; Karma cost: {cost}; available including this skill's refund: {c.Karma + refund}.\nKarma pays for the highest rating levels at the new rating per level. Specialization adds +2 only when applicable. Native languages have no purchased ratings or specialization.";
+                    }
+                    catch (ArgumentException e) { costs.Text = e.Message; }
+                }
+                rating.TextChanged += (_, _) => RefreshCosts(); karmaLevels.TextChanged += (_, _) => RefreshCosts();
+                specialization.TextChanged += (_, _) => RefreshCosts(); native.CheckedChange += (_, _) => RefreshCosts();
+                specPayment.ItemSelected += (_, _) => RefreshCosts(); RefreshCosts();
                 AlertDialog? editor = null;
                 if (existing is not null)
                     Button(form.Layout, "Remove this skill", () => new AlertDialog.Builder(this).SetMessage("Remove this knowledge skill or language?")!
@@ -349,8 +392,8 @@ public partial class WorkbenchActivity : Activity
                         { Commit(updated => updated.RemoveDraftKnowledge(existing.Id)); editor?.Dismiss(); }))!.Show());
                 editor = EditDialog("Knowledge and language", form.Scroll, () =>
                 {
-                    if (!int.TryParse(rating.Text, out var value)) throw new ArgumentException("Enter a whole-number rating.");
-                    Commit(updated => updated.SetDraftKnowledge(existing?.Id, name.Text ?? "", types[type.SelectedItemPosition], value, native.Checked));
+                    if (!int.TryParse(rating.Text, out var value) || !int.TryParse(karmaLevels.Text, out var levels)) throw new ArgumentException("Enter whole-number ratings.");
+                    Commit(updated => updated.SetDraftKnowledge(existing?.Id, name.Text ?? "", types[type.SelectedItemPosition], value, native.Checked, levels, specialization.Text ?? "", specPayment.SelectedItemPosition == 1));
                 });
             }))!.Show();
     }
@@ -474,7 +517,7 @@ public partial class WorkbenchActivity : Activity
                 $"Knowledge-point budget: {stats.KnowledgePoints}; contact-point budget: {stats.ContactPoints}");
             var trained = Creation().Skills(c).Where(s => s.Rating > 0);
             lines.Add("\nActive skills\n" + string.Join("\n", trained.Select(s => $"{s.Name}: rating {s.Rating}; pool {c.DraftSkillPool(s)}")));
-            lines.Add("\nKnowledge and languages\n" + string.Join("\n", c.DraftKnowledgeSkills.Select(k => $"{k.Name}: {(k.Native ? "Native" : k.Rating.ToString())}")));
+            lines.Add("\nKnowledge and languages\n" + string.Join("\n", c.DraftKnowledgeSkills.Select(k => $"{k.Name}: {(k.Native ? "Native" : k.Rating.ToString())}" + (k.Specialization.Length > 0 ? $"; {k.Specialization} (+2 when applicable)" : ""))));
             lines.Add($"\nRacial traits: {string.Join(", ", c.DraftRacialQualities)}\nNatural armor: {c.DraftRacialBonus("Armor")}; reach bonus: {c.DraftRacialBonus("Reach")}\nLifestyle cost adjustment: {c.DraftRacialBonus("LifestyleCost")}%");
             if (c.Field("magenabled") == "True" || c.Field("resenabled") == "True")
                 lines.Add($"\nTradition / stream: {c.TraditionName}\nPriority bonus skills chosen: {c.TalentSkillChoices.Count}/{c.TalentSkillChoicesRequired}\n" +
@@ -540,7 +583,7 @@ public partial class WorkbenchActivity : Activity
     private void About()
     {
         var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.11\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Supported gear/ammo inventory, basic weapon accessories and core implants with supported Essence loss for priority drafts are available. Full magic/Matrix play, advanced ammunition/attack workflows, advanced accessories, cyberlimbs and burnout are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
+        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.12\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Supported gear/ammo inventory, basic weapon accessories and core implants with supported Essence loss for priority drafts are available. Full magic/Matrix play, advanced ammunition/attack workflows, advanced accessories, cyberlimbs and burnout are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
         using var license = Assets!.Open("LICENSE.txt"); using var reader = new StreamReader(license);
         form.Layout.AddView(new TextView(this) { Text = reader.ReadToEnd() });
         new AlertDialog.Builder(this).SetTitle("About this preview")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();

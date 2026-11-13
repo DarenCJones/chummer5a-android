@@ -844,3 +844,116 @@ Assert(sensitiveMage.DraftEssence==4 && sensitiveMage.DraftAttributes.Single(a=>
 qualityRules.Remove(sensitiveMage,sensitiveMage.SelectedQualities.Single().Id);
 Assert(sensitiveMage.DraftAttributes.Single(a=>a.Name=="MAG").Rating==5,"Removing Sensitive System did not restore creation Magic.");
 Console.WriteLine("PASS: Sensitive System retroactive/new cyberware costs, multiplier-before-rounding, bioware conflicts, Essence/Magic restoration and save/reopen.");
+
+var knowledgeRunner = creation.CreateHumanDraft("Knowledge QA", "", priorities);
+knowledgeRunner.SetDraftKnowledge(null, "Seattle", "Street", 4, false, 2, "Gangs", true);
+var boughtKnowledge = knowledgeRunner.DraftKnowledgeSkills.Single();
+Assert(knowledgeRunner.Karma == 11 && knowledgeRunner.KnowledgePointsRemaining == 2 && boughtKnowledge.Rating == 4 && boughtKnowledge.KarmaRating == 2,
+    "Mixed knowledge allocation must cost 3+4+7 Karma and two knowledge points.");
+Assert((int)Xml(knowledgeRunner).Root!.Element("newskills")!.Element("knoskills")!.Element("skill")!.Element("karma")! == 2,
+    "Desktop knowledge Karma field must store levels, not their currency cost.");
+var knowledgeFundingBefore = Xml(knowledgeRunner);
+Reject(() => knowledgeRunner.SetDraftKnowledge(boughtKnowledge.Id, "Seattle", "Street", 6, false, 6, "Gangs", true));
+Reject(() => knowledgeRunner.SetDraftKnowledge(boughtKnowledge.Id, "Seattle", "Street", 2, false, 3));
+Reject(() => knowledgeRunner.SetDraftKnowledge(boughtKnowledge.Id, "Seattle", "Street", 4, false, 4, "Gangs", false));
+Reject(() => knowledgeRunner.SetDraftKnowledge(boughtKnowledge.Id, "Seattle", "Language", 0, true, 0, "Native specialization"));
+Assert(XNode.DeepEquals(knowledgeFundingBefore, Xml(knowledgeRunner)), "Rejected knowledge edits must preserve balances, ratings and specialization.");
+using (var encodedKnowledge = new MemoryStream())
+{
+    knowledgeRunner.SaveCompressed(encodedKnowledge); encodedKnowledge.Position = 0;
+    var reopenedKnowledge = CharacterDocument.LoadCompressed(encodedKnowledge);
+    Assert(reopenedKnowledge.DraftKnowledgeSkills.Single() == boughtKnowledge && reopenedKnowledge.Karma == 11 && reopenedKnowledge.KnowledgePointsRemaining == 2,
+        "Knowledge allocation and specialization must survive compressed saves.");
+}
+knowledgeRunner.SetDraftKnowledge(boughtKnowledge.Id, "Seattle", "Street", 4, false, 1, "Gangs", false);
+Assert(knowledgeRunner.Karma == 21 && knowledgeRunner.KnowledgePointsRemaining == 0,
+    "Changing funding must refund old Karma before charging the new highest level and point specialization.");
+knowledgeRunner.SetDraftKnowledge(boughtKnowledge.Id, "English", "Language", 0, true);
+Assert(knowledgeRunner.Karma == 25 && knowledgeRunner.KnowledgePointsRemaining == 4 && knowledgeRunner.DraftKnowledgeSkills.Single().Specialization == "",
+    "Converting to a native language must release paid ratings and specialization.");
+knowledgeRunner.RemoveDraftKnowledge(boughtKnowledge.Id);
+knowledgeRunner.SetDraftKnowledge(null, "History", "Academic", 4, false, 4);
+Assert(knowledgeRunner.Karma == 15 && knowledgeRunner.KnowledgePointsRemaining == 4, "All-Karma knowledge costs 1+2+3+4 and consumes no free points.");
+knowledgeRunner.RemoveDraftKnowledge(knowledgeRunner.DraftKnowledgeSkills.Single().Id);
+Assert(knowledgeRunner.Karma == 25, "Deleting knowledge must refund its paid creation Karma.");
+knowledgeRunner.SetDraftAttributes(new Dictionary<string, int> { ["LOG"] = 2 });
+knowledgeRunner.SetDraftKnowledge(null, "History", "Academic", 6, false, 1, "Ancient", false);
+var loweringKnowledge = Xml(knowledgeRunner);
+Reject(() => knowledgeRunner.SetDraftAttributes(new Dictionary<string, int> { ["LOG"] = 1 }));
+Assert(XNode.DeepEquals(loweringKnowledge, Xml(knowledgeRunner)), "Attribute reduction must include knowledge specialization point costs.");
+knowledgeRunner.SetDraftKnowledge(knowledgeRunner.DraftKnowledgeSkills.Single().Id, "History", "Academic", 6, false, 3, "Ancient", false);
+knowledgeRunner.SetDraftAttributes(new Dictionary<string, int> { ["LOG"] = 1 });
+Assert(knowledgeRunner.KnowledgePointsRemaining == 0, "Karma-funded knowledge levels must not block a valid reduced point budget.");
+Console.WriteLine("PASS: knowledge/language mixed point and Karma allocation, highest-level pricing, specializations, funding changes, refunds, budget safety and compressed persistence.");
+
+var karmaSkillRunner = creation.CreateHumanDraft("Active Karma QA", "", priorities);
+var karmaPistols = creation.Skills(karmaSkillRunner).Single(s => s.Name == "Pistols");
+karmaSkillRunner.SetDraftSkill(karmaPistols.Id, 4, 2);
+Assert(karmaSkillRunner.Karma == 11 && karmaSkillRunner.SkillPointsRemaining == 34 && creation.Skills(karmaSkillRunner).Single(s => s.Id == karmaPistols.Id).Rating == 4,
+    "Active skill mixed funding must cost 2*(3+4) Karma and two skill points.");
+var activeFundingBefore = Xml(karmaSkillRunner);
+Reject(() => karmaSkillRunner.SetDraftSkill(karmaPistols.Id, 6, 3));
+Reject(() => karmaSkillRunner.SetDraftGroup("Firearms", 2));
+Assert(XNode.DeepEquals(activeFundingBefore, Xml(karmaSkillRunner)), "Rejected Karma skill purchases or group conflicts must be atomic.");
+karmaSkillRunner.SetDraftSkill(karmaPistols.Id, 3, 3);
+Assert(karmaSkillRunner.Karma == 13 && karmaSkillRunner.SkillPointsRemaining == 36, "All-Karma active skill must cost 2*(1+2+3).");
+Reject(() => karmaSkillRunner.AddDraftSpecialization(karmaPistols.Id, "Semi-Automatics", false));
+karmaSkillRunner.AddDraftSpecialization(karmaPistols.Id, "Semi-Automatics", true);
+Assert(karmaSkillRunner.Karma == 6, "All-Karma specialization purchase mismatch.");
+karmaSkillRunner.RemoveDraftSpecialization(karmaPistols.Id);
+karmaSkillRunner.SetDraftSkill(karmaPistols.Id, 3, 1);
+karmaSkillRunner.AddDraftSpecialization(karmaPistols.Id, "Semi-Automatics", false);
+var pointSpecBefore = Xml(karmaSkillRunner);
+Reject(() => karmaSkillRunner.SetDraftSkill(karmaPistols.Id, 3, 3));
+Assert(XNode.DeepEquals(pointSpecBefore, Xml(karmaSkillRunner)), "Funding changes cannot silently reprice a point specialization as Karma.");
+using (var karmaSkillSave = new MemoryStream())
+{
+    karmaSkillRunner.SaveCompressed(karmaSkillSave); karmaSkillSave.Position = 0;
+    var reopenedSkill = CharacterDocument.LoadCompressed(karmaSkillSave);
+    Assert(creation.Skills(reopenedSkill).Single(s => s.Id == karmaPistols.Id).KarmaRating == 1 && reopenedSkill.Karma == 19 && reopenedSkill.SkillPointsRemaining == 33,
+        "Active Karma allocation and point specialty must persist.");
+}
+karmaSkillRunner.RemoveDraftSpecialization(karmaPistols.Id);
+karmaSkillRunner.SetDraftSkill(karmaPistols.Id, 0);
+Assert(karmaSkillRunner.Karma == 25 && karmaSkillRunner.SkillPointsRemaining == 36, "Resetting active allocations must refund only spent creation Karma.");
+var karmaGrantMage = creation.CreateDraft("Grant Karma QA", "", magicianPriority, "Human");
+var grantCandidates = creation.TalentSkillCandidates(karmaGrantMage).ToArray();
+var grantNames = grantCandidates.Take(karmaGrantMage.TalentSkillChoicesRequired).Select(s => s.Name).ToArray();
+creation.AssignTalentSkills(karmaGrantMage, grantNames);
+var grantSkill = creation.Skills(karmaGrantMage).Single(s => s.Name == grantNames[0]);
+karmaGrantMage.SetDraftSkill(grantSkill.Id, grantSkill.Rating + 1, 1);
+var grantCost = 2 * (grantSkill.Rating + 1);
+Assert(karmaGrantMage.Karma == 25 - grantCost, "Karma levels above a free talent grant must use the full new rating.");
+var replacementNames = grantCandidates.Where(s => s.Name != grantNames[0]).Take(karmaGrantMage.TalentSkillChoicesRequired).Select(s => s.Name).ToArray();
+creation.AssignTalentSkills(karmaGrantMage, replacementNames);
+Assert(karmaGrantMage.Karma == 23 && creation.Skills(karmaGrantMage).Single(s => s.Id == grantSkill.Id).Rating == 1,
+    "Changing a priority grant must reprice the remaining Karma level and refund the difference.");
+creation.AssignTalentSkills(karmaGrantMage, grantNames);
+Assert(karmaGrantMage.Karma == 25 - grantCost, "Restoring a grant must charge the higher Karma level again.");
+Console.WriteLine("PASS: active skill point/Karma splits, pricing, specialization funding restrictions, group conflicts, refunds, priority-grant repricing and compressed persistence.");
+
+var karmaGroupRunner = creation.CreateHumanDraft("Group Karma QA", "", priorities);
+karmaGroupRunner.SetDraftGroup("Firearms", 2, 2);
+Assert(karmaGroupRunner.Karma == 10 && karmaGroupRunner.GroupPointsRemaining == 5 && creation.Skills(karmaGroupRunner).Single(s => s.Name == "Pistols").Rating == 2,
+    "Group Karma must cost 5*(1+2), leave group points untouched and train all members.");
+var groupFundingBefore = Xml(karmaGroupRunner);
+Reject(() => karmaGroupRunner.SetDraftGroup("Firearms", 3, 3));
+Reject(() => karmaGroupRunner.SetDraftSkill(creation.Skills(karmaGroupRunner).Single(s => s.Name == "Pistols").Id, 3, 1));
+Assert(XNode.DeepEquals(groupFundingBefore, Xml(karmaGroupRunner)), "Unaffordable group and member edits must be atomic.");
+karmaGroupRunner.SetDraftGroup("Firearms", 3, 1);
+Assert(karmaGroupRunner.Karma == 10 && karmaGroupRunner.GroupPointsRemaining == 3, "Mixed group funding must charge the highest new rating.");
+using (var groupSave = new MemoryStream())
+{
+    karmaGroupRunner.SaveCompressed(groupSave); groupSave.Position = 0;
+    var reopenedGroup = CharacterDocument.LoadCompressed(groupSave);
+    Assert(reopenedGroup.DraftGroups.Single(g => g.Name == "Firearms") == new DraftSkillGroup("Firearms", 3, 1) && reopenedGroup.Karma == 10,
+        "Group Karma levels and costs must persist.");
+}
+karmaGroupRunner.SetDraftGroup("Firearms", 0);
+Assert(karmaGroupRunner.Karma == 25 && karmaGroupRunner.GroupPointsRemaining == 5, "Resetting a group must refund creation Karma and points.");
+var karmaAspected = creation.CreateDraft("Aspected group Karma", "", magicianPriority with { Path = "Aspected Magician", Talent = "B", Attributes = "A" }, "Human");
+var freeSorcery = karmaAspected.DraftGroups.Single(g => g.Name == "Sorcery").Rating;
+karmaAspected.SetDraftGroup("Sorcery", freeSorcery + 1, 1);
+Assert(karmaAspected.Karma == 25 - 5 * (freeSorcery + 1), "A Karma group level above a free grant must pay the full new rating.");
+Reject(() => karmaAspected.SetDraftGroup("Sorcery", freeSorcery, freeSorcery));
+Console.WriteLine("PASS: skill group Karma/mixed funding, member ratings, free grants, conflicts, atomic rejection, reset refunds and compressed persistence.");

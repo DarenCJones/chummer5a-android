@@ -87,12 +87,19 @@ public sealed partial class CharacterDocument
         var count = TalentSkillChoicesRequired; var rating = TalentFreeSkillRating;
         if (count == 0) throw new InvalidOperationException("This talent grants no individual bonus skill choices.");
         if (names.Length != count || names.Distinct().Count() != count) throw new ArgumentException($"Select exactly {count} different bonus skills.");
+        decimal balance = Karma;
         foreach (var node in SkillNodes)
         {
             var name = node.Element("name")!.Value; var group = (string?)node.Element("skillgroup") ?? "";
-            if (((int?)node.Element("base") ?? 0) + (names.Contains(name) ? rating : 0) + GroupRating(group) > DraftSkillMaximum(name))
+            var paidKarma = (int?)node.Element("karma") ?? 0;
+            var proposedRating = ((int?)node.Element("base") ?? 0) + paidKarma + (names.Contains(name) ? rating : 0) + GroupRating(group);
+            if (proposedRating > DraftSkillMaximum(name))
                 throw new ArgumentException("Reset some paid skill or group points before changing priority bonus skills.");
+            if (paidKarma > 0 && proposedRating == paidKarma && node.Element("specs")?.HasElements == true && (string?)node.Element("buywithkarma") != "True")
+                throw new ArgumentException("Remove the point-funded specialization before removing this skill's free priority rating.");
+            balance += ActiveSkillKarmaCost(DraftSkillRating(node.Element("suid")!.Value), paidKarma) - ActiveSkillKarmaCost(proposedRating, paidKarma);
         }
+        if (balance < 0) throw new ArgumentException("Not enough Karma to reprice paid skill levels above the new priority grants.");
         var proposedSkills = SkillNodes.ToDictionary(s => s.Element("name")!.Value, s =>
             DraftSkillRating(s.Element("suid")!.Value) - FreeSkillRating(s.Element("name")!.Value) + (names.Contains(s.Element("name")!.Value) ? rating : 0));
         ValidatePowerConstraints(skillRatings: proposedSkills);
@@ -103,5 +110,6 @@ public sealed partial class CharacterDocument
         improvements.Add(grants);
         document.Root.Elements("priorityskills").Where(e => e.HasElements).Remove();
         document.Root.Add(new XElement("priorityskills", names.Select(name => new XElement("priorityskill", name))));
+        SetField("karma", balance.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 }

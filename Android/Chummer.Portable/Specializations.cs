@@ -26,6 +26,8 @@ public sealed partial class CharacterDocument
         if (name.Length == 0 || name.Length > 200) throw new ArgumentException("Enter a specialization name of 1–200 characters.");
         var skill = SkillNodes.SingleOrDefault(s => (string?)s.Element("suid") == skillId) ?? throw new ArgumentException("Unknown skill.");
         if (DraftSkillRating(skillId) < 1) throw new ArgumentException("Train the skill before adding a specialization.");
+        if (!karma && DraftSkillKarmaLevels(skillId) > 0 && DraftSkillRating(skillId) == DraftSkillKarmaLevels(skillId))
+            throw new ArgumentException("A skill bought entirely with Karma must also buy its specialization with Karma under standard rules.");
         if (skill.Element("specs")?.HasElements == true) throw new ArgumentException("Only one specialization per active skill is supported during standard creation.");
         if (karma ? Karma < 7 : SkillPointsRemaining < 1) throw new ArgumentException(karma ? "Not enough Karma; a specialization costs 7." : "Not enough skill points; a specialization costs 1.");
         if (skill.Element("specs") is null) skill.Add(new XElement("specs"));

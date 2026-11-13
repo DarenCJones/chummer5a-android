@@ -83,7 +83,8 @@ public static class CharacterSheet
             {
                 html.Append("<h2>Knowledge and languages</h2><ul>");
                 foreach (var k in knowledge)
-                    html.Append("<li>").Append(Encode($"{k.Name} ({k.Type}): {(k.Native ? "Native" : k.Rating.ToString())}")).Append("</li>");
+                    html.Append("<li>").Append(Encode($"{k.Name} ({k.Type}): {(k.Native ? "Native" : k.Rating.ToString())}" +
+                        (k.Specialization.Length > 0 ? $"; {k.Specialization} (+2 when applicable)" : ""))).Append("</li>");
                 html.Append("</ul>");
             }
             if (character.Field("magenabled") == "True" || character.Field("resenabled") == "True")
