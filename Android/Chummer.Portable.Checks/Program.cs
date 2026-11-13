@@ -995,3 +995,32 @@ augmentationRules.Remove(karmaMagic, karmaMagic.InstalledAugmentations.Single().
 Assert(karmaMagic.Karma == 5 && karmaMagic.DraftAttributes.Single(a => a.Name == "MAG").Rating == 4,
     "Implant removal must restore Magic and charge the restored attribute cost.");
 Console.WriteLine("PASS: attribute/special Karma splits, priority budgets, mixed costs, refunds, save/reopen and Essence-driven Magic repricing with atomic restoration rejection.");
+
+var resourceRunner = creation.CreateHumanDraft("Resource Karma QA", "", new PriorityChoice("SumtoTen", "C", "A", "A", "E"));
+Assert(resourceRunner.Nuyen == 6000 && resourceRunner.DraftResourceKarma == 0, "Resource test priority grant mismatch.");
+resourceRunner.SetDraftResourceKarma(10);
+Assert(resourceRunner.Karma == 15 && resourceRunner.Nuyen == 26000 && resourceRunner.Field("startingnuyen") == "6000" && resourceRunner.Field("nuyenbp") == "10",
+    "Resource exchange must preserve the priority grant and save the desktop Karma allocation.");
+resourceRunner.SetDraftResourceKarma(10);
+Assert(resourceRunner.Karma == 15 && resourceRunner.Nuyen == 26000, "Saving the same resource allocation must be idempotent.");
+augmentationRules.Purchase(resourceRunner, ImplantId("Muscle Replacement"), 1, "Standard");
+var resourceSpentBefore = Xml(resourceRunner);
+Reject(() => resourceRunner.SetDraftResourceKarma(0));
+Reject(() => resourceRunner.SetDraftResourceKarma(11));
+Reject(() => resourceRunner.SetDraftResourceKarma(-1));
+Assert(XNode.DeepEquals(resourceSpentBefore, Xml(resourceRunner)), "Spent-resource refunds and invalid allocation rejection must be atomic.");
+using (var resourceSave = new MemoryStream())
+{
+    resourceRunner.SaveCompressed(resourceSave); resourceSave.Position = 0;
+    var reopenedResource = CharacterDocument.LoadCompressed(resourceSave);
+    Assert(reopenedResource.DraftResourceKarma == 10 && reopenedResource.Karma == resourceRunner.Karma && reopenedResource.Nuyen == resourceRunner.Nuyen,
+        "Resource allocation and remaining balances must persist.");
+}
+augmentationRules.Remove(resourceRunner, resourceRunner.InstalledAugmentations.Single().Id);
+resourceRunner.SetDraftResourceKarma(0);
+Assert(resourceRunner.Karma == 25 && resourceRunner.Nuyen == 6000, "Reversing purchases and resource funding must restore both balances.");
+resourceRunner.SetDraftAttributes(new Dictionary<string,int> { ["BOD"] = 3 }, new Dictionary<string,int> { ["BOD"] = 2 });
+var poorResourceBefore = Xml(resourceRunner);
+Reject(() => resourceRunner.SetDraftResourceKarma(1));
+Assert(XNode.DeepEquals(poorResourceBefore, Xml(resourceRunner)), "Resource conversion cannot overspend Karma already allocated elsewhere.");
+Console.WriteLine("PASS: standard creation Karma/Nuyen conversion, maximums, idempotence, spent-funds rejection, refunds and compressed persistence.");

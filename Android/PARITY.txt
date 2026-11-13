@@ -8,7 +8,8 @@ area needs source comparison, semantic regression checks and Android workflow QA
 
 PARTIAL — Character files: XML preservation and upstream LZMA import/export tested
 against 34 fixtures. Remaining desktop import/export utilities and custom data pending.
-PARTIAL — Creation: core metatypes and Priority/Sum-to-Ten drafts; other methods,
+PARTIAL — Creation: core metatypes, Priority/Sum-to-Ten drafts and standard
+Karma-to-Nuyen conversion with spent-funds protection; other methods,
 metavariants, remaining metatypes, complete validation and finalization pending.
 PARTIAL — Attributes and skills: core allocations, groups, knowledge, languages,
 priority grants, active/knowledge specializations, mixed point/Karma attribute,

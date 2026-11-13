@@ -54,6 +54,7 @@ public partial class WorkbenchActivity : Activity
         MenuButton(layout, "Edit profile and background", EditProfile, "Characters");
         MenuButton(layout, "Contacts", EditContacts, "Characters");
         MenuButton(layout, "Allocate draft attributes", EditAttributes, "Create");
+        MenuButton(layout, "Exchange creation Karma for Nuyen", EditResourceKarma, "Create");
         MenuButton(layout, "Allocate draft skills", EditSkills, "Create");
         MenuButton(layout, "Qualities", EditQualities, "Create");
         MenuButton(layout, "Skill specializations", EditSpecializations, "Create");
@@ -606,7 +607,7 @@ public partial class WorkbenchActivity : Activity
     private void About()
     {
         var form = Form();
-        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.13\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Supported gear/ammo inventory, basic weapon accessories and core implants with supported Essence loss for priority drafts are available. Full magic/Matrix play, advanced ammunition/attack workflows, advanced accessories, cyberlimbs and burnout are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
+        form.Layout.AddView(new TextView(this) { Text = "Chummer Offline Preview 0.14\nBased on Chummer5a, GPL-3.0-or-later.\nhttps://github.com/chummer5a/chummer5a\n\nThis development preview is not a feature-complete replacement. New drafts support core metahumans and mundane, magical or technomancer talents under standard Priority or Sum-to-Ten rules. Core traditions, spell/preparation and complex-form learning are available. Core adept powers and supported armor/weapon purchases are available. Supported gear/ammo inventory, basic weapon accessories and core implants with supported Essence loss for priority drafts are available. Full magic/Matrix play, advanced ammunition/attack workflows, advanced accessories, cyberlimbs and burnout are pending. Character creation cannot yet be finalized. Imported-character effects and advancement are not recalculated.\n\nAll character storage and play tools work on the device. No account or internet connection is required. Export backups through the Characters section; Android clears app-private storage when the app is uninstalled.\n\nLicense\n" });
         using var license = Assets!.Open("LICENSE.txt"); using var reader = new StreamReader(license);
         form.Layout.AddView(new TextView(this) { Text = reader.ReadToEnd() });
         new AlertDialog.Builder(this).SetTitle("About this preview")!.SetView(form.Scroll)!.SetPositiveButton("Close", (_, _) => { })!.Show();
